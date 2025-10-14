@@ -159,12 +159,35 @@ The `vercel.json` file is already configured for optimal deployment:
 {
   "version": 2,
   "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": null,
-  "outputDirectory": "dist/public"
+  "outputDirectory": "dist/public",
+  "functions": {
+    "api/index.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
 ```
+
+This configuration:
+- Builds the application using `npm run build`
+- Serves static assets from `dist/public` via Vercel's CDN
+- Routes API requests (`/api/*`) to a Node.js 20.x serverless function
+- Handles client-side routing by serving `index.html` for all non-API routes
+- The serverless function is defined in `api/index.js` which wraps the Express app
+
+**Note:** The application has been refactored to support both traditional server deployment (Railway, VPS) and serverless deployment (Vercel). The Express server automatically detects the environment and adjusts accordingly.
 
 ## Deployment to Other Platforms
 
