@@ -6,6 +6,90 @@ A modern, dark-themed portfolio website for Gabhasti Giri (Snozxyx), a software 
 
 The design philosophy balances professional tech aesthetics with gaming culture vibrancy, using a sophisticated dark color palette with white and orange accents, smooth animations, and purposeful micro-interactions.
 
+## Key Features
+
+### 🔐 Role-Based Access Control (RBAC)
+
+**Four User Roles:**
+- **Admin** - Full control over the entire platform, including user management, site settings, and all content
+- **Editor** - Can create, edit, and publish posts; can review posts from authors
+- **Author** - Can create and edit their own posts; submit posts for editorial review
+- **Reader** - Can view, like, and comment on published posts
+
+**User Management:**
+- Ban users to prevent access
+- Mute users to prevent commenting
+- Toggle posting permissions
+- Change user roles dynamically
+
+### 📢 Announcement System
+
+**Flexible Announcement Types:**
+- **Info** - General information and updates
+- **Warning** - Important notices that need attention
+- **Alert** - Critical messages requiring immediate awareness
+
+**Display Options:**
+- **Banner** - Top-of-page dismissible banners
+- **Popup** - Modal popups for important announcements
+- **Notification** - In-app notification center (coming soon)
+
+**Features:**
+- Create, edit, and delete announcements
+- Toggle announcements active/inactive
+- Set start and end dates for time-limited announcements
+- Real-time display to all users
+
+### 🛠️ Global Site Settings
+
+**Maintenance Mode:**
+- Toggle site-wide maintenance mode
+- Custom maintenance message
+- Admin bypass (admins can access site during maintenance)
+
+**SEO & Branding:**
+- Site title and description
+- Custom logo and favicon
+- Open Graph image for social sharing
+- Custom footer message
+
+### 📝 Blog System with Editorial Workflow
+
+**Post Status Management:**
+- **Draft** - Work in progress, not visible to others
+- **Pending Review** - Submitted by authors for editor review
+- **Approved** - Reviewed and approved by editors
+- **Published** - Live and visible to all users
+- **Rejected** - Rejected by editors with feedback
+
+**Features:**
+- SEO-friendly URLs with auto-generated slugs
+- Rich text content with markdown support
+- Cover images and excerpts
+- Tag and category system
+- Star/like system
+- Comment system with moderation
+- View counter and read time estimation
+
+### 🎨 Modern Design & UX
+
+- Dark mode by default with sophisticated color palette
+- Smooth animations with Framer Motion
+- Particle background effects
+- Responsive mobile-first design
+- Glassmorphic UI elements
+- Scroll-triggered animations
+- Accessible components with Radix UI
+
+### 🚀 Production-Ready
+
+- Vercel-compatible deployment configuration
+- PostgreSQL with Drizzle ORM
+- Session-based authentication with bcrypt
+- Type-safe API with Zod validation
+- Built-in security features
+- Performance optimized
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -103,7 +187,10 @@ Preferred communication style: Simple, everyday language.
 **Authorization:**
 - User ID stored in session for authenticated requests
 - Blog post authorship verified by authorId field
-- Admin/user roles not implemented (single user portfolio)
+- Role-based access control (RBAC) with 4 roles: admin, editor, author, reader
+- Middleware for role-specific route protection (requireAdmin, requireEditor, requireAuthor)
+- User status checks (banned, muted, can post)
+- Dynamic permission system based on user role and status
 
 ## External Dependencies
 

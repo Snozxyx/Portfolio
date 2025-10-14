@@ -9,11 +9,12 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   displayName: text("display_name"),
-  role: text("role").notNull().default("user"), // admin, moderator, user
+  role: text("role").notNull().default("reader"), // admin, editor, author, reader
   bio: text("bio"),
   avatar: text("avatar"),
   isBanned: boolean("is_banned").default(false).notNull(),
   canPost: boolean("can_post").default(true).notNull(),
+  isMuted: boolean("is_muted").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -21,6 +22,25 @@ export const siteSettings = pgTable("site_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   maintenanceMode: boolean("maintenance_mode").default(false).notNull(),
   maintenanceMessage: text("maintenance_message"),
+  siteTitle: text("site_title").default("Snozxyx Portfolio"),
+  siteDescription: text("site_description"),
+  siteLogo: text("site_logo"),
+  favicon: text("favicon"),
+  ogImage: text("og_image"),
+  footerMessage: text("footer_message"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const announcements = pgTable("announcements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").notNull().default("info"), // info, warning, alert
+  displayType: text("display_type").notNull().default("banner"), // banner, popup, notification
+  isActive: boolean("is_active").default(true).notNull(),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -54,6 +74,7 @@ export const blogPosts = pgTable("blog_posts", {
   tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
   category: text("category"),
   published: boolean("published").default(false).notNull(),
+  status: text("status").notNull().default("draft"), // draft, pending_review, approved, published, rejected
   stars: integer("stars").default(0).notNull(),
   views: integer("views").default(0).notNull(),
   readTime: integer("read_time"),
@@ -102,12 +123,26 @@ export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({
   createdAt: true,
   updatedAt: true,
   stars: true,
+  views: true,
+}).extend({
+  status: z.string().optional(),
 });
 
 export const insertCommentSchema = createInsertSchema(blogComments).omit({
   id: true,
   createdAt: true,
 });
+
+export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateSiteSettingsSchema = createInsertSchema(siteSettings).omit({
+  id: true,
+  updatedAt: true,
+}).partial();
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type LoginUser = z.infer<typeof loginSchema>;
@@ -137,3 +172,6 @@ export type CommentWithAuthor = BlogComment & {
 export type PostStar = typeof postStars.$inferSelect;
 
 export type SiteSettings = typeof siteSettings.$inferSelect;
+
+export type Announcement = typeof announcements.$inferSelect;
+export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
