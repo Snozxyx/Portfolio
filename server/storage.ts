@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Project, type InsertProject, type Skill, type InsertSkill, type BlogPost, type InsertBlogPost, type BlogComment, type InsertComment, type PostStar, type SafeUser } from "@shared/schema";
+import { type User, type InsertUser, type Project, type InsertProject, type Skill, type InsertSkill, type BlogPost, type InsertBlogPost, type BlogComment, type InsertComment, type PostStar, type SafeUser, type SiteSettings, type Announcement, type InsertAnnouncement } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -13,6 +13,8 @@ export interface IStorage {
   deleteUser(id: string): Promise<boolean>;
   updateUserRole(id: string, role: string): Promise<SafeUser | undefined>;
   toggleUserPosting(userId: string, canPost: boolean): Promise<SafeUser | undefined>;
+  toggleUserBan(userId: string, isBanned: boolean): Promise<SafeUser | undefined>;
+  toggleUserMute(userId: string, isMuted: boolean): Promise<SafeUser | undefined>;
 
   // Projects
   getAllProjects(): Promise<Project[]>;
@@ -37,6 +39,7 @@ export interface IStorage {
   updatePost(id: string, post: Partial<InsertBlogPost>): Promise<BlogPost | undefined>;
   deletePost(id: string): Promise<boolean>;
   updatePostPublishStatus(id: string, published: boolean): Promise<BlogPost | undefined>;
+  updatePostStatus(id: string, status: string): Promise<BlogPost | undefined>;
   pinPost(id: string): Promise<BlogPost | undefined>;
   unpinPost(id: string): Promise<BlogPost | undefined>;
 
@@ -52,9 +55,16 @@ export interface IStorage {
   hasUserStarred(postId: string, userId: string): Promise<boolean>;
 
   // Site Settings
-  getSiteSettings(): Promise<any>;
-  updateSiteSettings(settings: any): Promise<void>;
+  getSiteSettings(): Promise<SiteSettings>;
+  updateSiteSettings(settings: Partial<SiteSettings>): Promise<SiteSettings>;
   toggleMaintenanceMode(): Promise<void>;
+
+  // Announcements
+  getAllAnnouncements(activeOnly?: boolean): Promise<Announcement[]>;
+  getAnnouncement(id: string): Promise<Announcement | undefined>;
+  createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement>;
+  updateAnnouncement(id: string, announcement: Partial<InsertAnnouncement>): Promise<Announcement | undefined>;
+  deleteAnnouncement(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -64,7 +74,8 @@ export class MemStorage implements IStorage {
   private blogPosts: Map<string, BlogPost>;
   private blogComments: Map<string, BlogComment>;
   private postStars: Map<string, PostStar>;
-  private siteSettings: Map<string, any>;
+  private siteSettings: Map<string, SiteSettings>;
+  private announcements: Map<string, Announcement>;
 
 
   constructor() {
@@ -75,6 +86,7 @@ export class MemStorage implements IStorage {
     this.blogComments = new Map();
     this.postStars = new Map();
     this.siteSettings = new Map();
+    this.announcements = new Map();
 
 
     this.seedData();
@@ -91,22 +103,24 @@ export class MemStorage implements IStorage {
       role: "admin",
       canPost: true,
       isBanned: false,
+      isMuted: false,
       bio: null,
       avatar: null,
       createdAt: new Date()
     };
     this.users.set(adminUser.id, adminUser);
 
-    // Sample user
+    // Sample reader user
     const sampleUser: User = {
       id: randomUUID(),
       username: "testuser",
       email: "test@example.com",
       password: bcrypt.hashSync("password123", 10),
       displayName: "Test User",
-      role: "user",
-      canPost: true,
+      role: "reader",
+      canPost: false,
       isBanned: false,
+      isMuted: false,
       bio: null,
       avatar: null,
       createdAt: new Date()
@@ -168,7 +182,13 @@ export class MemStorage implements IStorage {
 
     sampleProjects.forEach(project => {
       const id = randomUUID();
-      this.projects.set(id, { ...project, id });
+      this.projects.set(id, { 
+        ...project, 
+        id,
+        githubUrl: project.githubUrl || null,
+        liveUrl: project.liveUrl || null,
+        imageUrl: project.imageUrl || null
+      });
     });
 
     // Sample Skills
@@ -193,7 +213,11 @@ export class MemStorage implements IStorage {
 
     sampleSkills.forEach(skill => {
       const id = randomUUID();
-      this.skills.set(id, { ...skill, id });
+      this.skills.set(id, { 
+        ...skill, 
+        id,
+        icon: skill.icon || null
+      });
     });
 
     // Sample Blog Posts
@@ -219,7 +243,25 @@ export class MemStorage implements IStorage {
     samplePosts.forEach(post => {
       const id = randomUUID();
       const slug = this.generateSlug(post.title);
-      this.blogPosts.set(id, { ...post, id, slug, stars: 0, views: 0, readTime: 5, createdAt: new Date(), updatedAt: new Date(), publishedAt: new Date() });
+      this.blogPosts.set(id, { 
+        id, 
+        slug,
+        title: post.title,
+        content: post.content,
+        excerpt: post.excerpt || null,
+        authorId: post.authorId,
+        tags: post.tags || [],
+        category: post.category || null,
+        published: post.published || false,
+        status: "published", 
+        stars: 0, 
+        views: 0, 
+        readTime: 5, 
+        coverImage: post.coverImage || null,
+        createdAt: new Date(), 
+        updatedAt: new Date(), 
+        publishedAt: new Date() 
+      });
     });
 
     // Sample Comments
@@ -248,8 +290,16 @@ export class MemStorage implements IStorage {
 
     // Sample Site Settings
     this.siteSettings.set("settings", {
+      id: randomUUID(),
       maintenanceMode: false,
-      maintenanceMessage: "The website is currently under maintenance. Please check back soon."
+      maintenanceMessage: "The website is currently under maintenance. Please check back soon.",
+      siteTitle: "Snozxyx Portfolio",
+      siteDescription: "A modern portfolio showcasing projects, skills, and blog posts",
+      siteLogo: null,
+      favicon: null,
+      ogImage: null,
+      footerMessage: "Built with passion and code",
+      updatedAt: new Date()
     });
   }
 
@@ -274,15 +324,18 @@ export class MemStorage implements IStorage {
     const hashedPassword = await bcrypt.hash(insertUser.password, 10);
     const id = randomUUID();
     const user: User = {
-      ...insertUser,
       id,
+      username: insertUser.username,
+      email: insertUser.email,
       password: hashedPassword,
-      createdAt: new Date(),
-      role: insertUser.role || "user",
-      canPost: insertUser.canPost !== undefined ? insertUser.canPost : true,
-      isBanned: insertUser.isBanned !== undefined ? insertUser.isBanned : false,
+      displayName: insertUser.displayName || null,
+      role: insertUser.role || "reader",
       bio: insertUser.bio || null,
-      avatar: insertUser.avatar || null
+      avatar: insertUser.avatar || null,
+      isBanned: insertUser.isBanned !== undefined ? insertUser.isBanned : false,
+      canPost: insertUser.canPost !== undefined ? insertUser.canPost : false,
+      isMuted: insertUser.isMuted !== undefined ? insertUser.isMuted : false,
+      createdAt: new Date(),
     };
     this.users.set(id, user);
     const { password, ...safeUser } = user;
@@ -324,6 +377,29 @@ export class MemStorage implements IStorage {
     return safeUser;
   }
 
+  async toggleUserBan(userId: string, isBanned: boolean): Promise<SafeUser | undefined> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    user.isBanned = isBanned;
+    this.users.set(userId, user);
+
+    const { password, ...safeUser } = user;
+    return safeUser;
+  }
+
+  async toggleUserMute(userId: string, isMuted: boolean): Promise<SafeUser | undefined> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    user.isMuted = isMuted;
+    this.users.set(userId, user);
+
+    const { password, ...safeUser } = user;
+    return safeUser;
+  }
 
   // Projects
   async getAllProjects(): Promise<Project[]> {
@@ -336,7 +412,13 @@ export class MemStorage implements IStorage {
 
   async createProject(insertProject: InsertProject): Promise<Project> {
     const id = randomUUID();
-    const project: Project = { ...insertProject, id };
+    const project: Project = { 
+      ...insertProject, 
+      id,
+      githubUrl: insertProject.githubUrl || null,
+      liveUrl: insertProject.liveUrl || null,
+      imageUrl: insertProject.imageUrl || null
+    };
     this.projects.set(id, project);
     return project;
   }
@@ -365,7 +447,11 @@ export class MemStorage implements IStorage {
 
   async createSkill(insertSkill: InsertSkill): Promise<Skill> {
     const id = randomUUID();
-    const skill: Skill = { ...insertSkill, id };
+    const skill: Skill = { 
+      ...insertSkill, 
+      id,
+      icon: insertSkill.icon || null
+    };
     this.skills.set(id, skill);
     return skill;
   }
@@ -415,22 +501,16 @@ export class MemStorage implements IStorage {
     const post = this.blogPosts.get(id);
     if (!post) return undefined;
 
-    const author = this.users.get(post.authorId);
-    return {
-      ...post,
-      author: author ? { ...author, password: undefined } : null,
-    };
+    // Just return the post without adding author
+    return post;
   }
 
   async getPostBySlug(slug: string): Promise<BlogPost | undefined> {
     const post = Array.from(this.blogPosts.values()).find(p => p.slug === slug);
     if (!post) return undefined;
 
-    const author = this.users.get(post.authorId);
-    return {
-      ...post,
-      author: author ? { ...author, password: undefined } : null,
-    };
+    // Just return the post without adding author
+    return post;
   }
 
   async getPostsByAuthor(authorId: string): Promise<BlogPost[]> {
@@ -438,13 +518,7 @@ export class MemStorage implements IStorage {
       .filter(p => p.authorId === authorId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    return posts.map(post => {
-      const author = this.users.get(post.authorId);
-      return {
-        ...post,
-        author: author ? { ...author, password: undefined } : null,
-      };
-    });
+    return posts;
   }
 
   private generateSlug(title: string): string {
@@ -473,12 +547,20 @@ export class MemStorage implements IStorage {
     const readTime = Math.ceil(wordCount / 200);
 
     const post: BlogPost = {
-      ...insertPost,
       id,
       slug,
+      title: insertPost.title,
+      content: insertPost.content,
+      excerpt: insertPost.excerpt || null,
+      authorId: insertPost.authorId,
+      tags: insertPost.tags || [],
+      category: insertPost.category || null,
+      published: insertPost.published !== undefined ? insertPost.published : false,
+      status: insertPost.status || "draft",
       stars: 0,
       views: 0,
       readTime,
+      coverImage: insertPost.coverImage || null,
       createdAt: new Date(),
       updatedAt: new Date(),
       publishedAt: insertPost.published ? new Date() : null,
@@ -509,6 +591,15 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  async updatePostStatus(id: string, status: string): Promise<BlogPost | undefined> {
+    const post = this.blogPosts.get(id);
+    if (!post) return undefined;
+
+    const updated = { ...post, status, updatedAt: new Date() };
+    this.blogPosts.set(id, updated);
+    return updated;
+  }
+
   async pinPost(id: string): Promise<BlogPost | undefined> {
     // In-memory: Simulate pinning by moving to the front of a hypothetical sorted list
     // For now, we'll just update the post object. A real implementation might add a 'pinned' flag.
@@ -535,13 +626,7 @@ export class MemStorage implements IStorage {
       .filter(c => c.postId === postId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    return comments.map(comment => {
-      const author = this.users.get(comment.authorId);
-      return {
-        ...comment,
-        author: author ? { ...author, password: undefined } : null,
-      };
-    });
+    return comments;
   }
 
   async createComment(insertComment: InsertComment): Promise<BlogComment> {
@@ -604,14 +689,22 @@ export class MemStorage implements IStorage {
   }
 
   // Site Settings
-  async getSiteSettings(): Promise<any> {
+  async getSiteSettings(): Promise<SiteSettings> {
     const settings = this.siteSettings.get("settings");
 
     if (!settings) {
       // Create default settings if none exist
-      const defaultSettings = {
+      const defaultSettings: SiteSettings = {
+        id: randomUUID(),
         maintenanceMode: false,
-        maintenanceMessage: "We're currently performing maintenance. Please check back soon."
+        maintenanceMessage: "We're currently performing maintenance. Please check back soon.",
+        siteTitle: "Snozxyx Portfolio",
+        siteDescription: "A modern portfolio showcasing projects, skills, and blog posts",
+        siteLogo: null,
+        favicon: null,
+        ogImage: null,
+        footerMessage: "Built with passion and code",
+        updatedAt: new Date()
       };
       this.siteSettings.set("settings", defaultSettings);
       return defaultSettings;
@@ -620,16 +713,80 @@ export class MemStorage implements IStorage {
     return settings;
   }
 
-  async updateSiteSettings(settings: any): Promise<void> {
-    this.siteSettings.set("settings", { ...this.siteSettings.get("settings"), ...settings });
+  async updateSiteSettings(updates: Partial<SiteSettings>): Promise<SiteSettings> {
+    const currentSettings = await this.getSiteSettings();
+    const updatedSettings = { 
+      ...currentSettings, 
+      ...updates,
+      updatedAt: new Date()
+    };
+    this.siteSettings.set("settings", updatedSettings);
+    return updatedSettings;
   }
 
   async toggleMaintenanceMode(): Promise<void> {
-    const currentSettings = this.siteSettings.get("settings");
-    if (currentSettings) {
-      currentSettings.maintenanceMode = !currentSettings.maintenanceMode;
-      this.siteSettings.set("settings", currentSettings);
+    const currentSettings = await this.getSiteSettings();
+    currentSettings.maintenanceMode = !currentSettings.maintenanceMode;
+    currentSettings.updatedAt = new Date();
+    this.siteSettings.set("settings", currentSettings);
+  }
+
+  // Announcements
+  async getAllAnnouncements(activeOnly = false): Promise<Announcement[]> {
+    let announcements = Array.from(this.announcements.values());
+    
+    if (activeOnly) {
+      const now = new Date();
+      announcements = announcements.filter(a => {
+        if (!a.isActive) return false;
+        if (a.startDate && new Date(a.startDate) > now) return false;
+        if (a.endDate && new Date(a.endDate) < now) return false;
+        return true;
+      });
     }
+
+    return announcements.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  async getAnnouncement(id: string): Promise<Announcement | undefined> {
+    return this.announcements.get(id);
+  }
+
+  async createAnnouncement(insertAnnouncement: InsertAnnouncement): Promise<Announcement> {
+    const id = randomUUID();
+    const announcement: Announcement = {
+      id,
+      title: insertAnnouncement.title,
+      message: insertAnnouncement.message,
+      type: insertAnnouncement.type || "info",
+      displayType: insertAnnouncement.displayType || "banner",
+      isActive: insertAnnouncement.isActive !== undefined ? insertAnnouncement.isActive : true,
+      startDate: insertAnnouncement.startDate || null,
+      endDate: insertAnnouncement.endDate || null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.announcements.set(id, announcement);
+    return announcement;
+  }
+
+  async updateAnnouncement(id: string, updates: Partial<InsertAnnouncement>): Promise<Announcement | undefined> {
+    const announcement = this.announcements.get(id);
+    if (!announcement) return undefined;
+
+    const updated = { 
+      ...announcement, 
+      ...updates,
+      updatedAt: new Date()
+    };
+    this.announcements.set(id, updated);
+    return updated;
+  }
+
+  async deleteAnnouncement(id: string): Promise<boolean> {
+    return this.announcements.delete(id);
   }
 }
 

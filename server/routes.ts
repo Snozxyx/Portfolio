@@ -19,10 +19,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   };
 
+  // Middleware to check if user is at least editor
+  const requireEditor = async (req: any, res: any, next: any) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    const user = await storage.getUser(req.session.userId);
+    if (!user || !['admin', 'editor'].includes(user.role)) {
+      return res.status(403).json({ error: "Editor access required" });
+    }
+    
+    next();
+  };
+
+  // Middleware to check if user can create posts
+  const requireAuthor = async (req: any, res: any, next: any) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    const user = await storage.getUser(req.session.userId);
+    if (!user || !['admin', 'editor', 'author'].includes(user.role)) {
+      return res.status(403).json({ error: "Author access required" });
+    }
+    
+    if (user.isBanned) {
+      return res.status(403).json({ error: "Your account has been banned" });
+    }
+    
+    if (!user.canPost) {
+      return res.status(403).json({ error: "Posting disabled for your account" });
+    }
+    
+    next();
+  };
+
+  // Middleware to check if user is banned or muted
+  const checkUserStatus = async (req: any, res: any, next: any) => {
+    if (!req.session.userId) {
+      return next(); // Not logged in is OK for public routes
+    }
+    
+    const user = await storage.getUser(req.session.userId);
+    if (user?.isBanned) {
+      return res.status(403).json({ error: "Your account has been banned" });
+    }
+    
+    next();
+  };
+
   // Middleware to check maintenance mode
   const checkMaintenanceMode = async (req: any, res: any, next: any) => {
-    // Skip maintenance check for auth endpoints and admin settings
-    if (req.path.startsWith('/api/auth') || req.path === '/api/admin/settings') {
+    // Skip maintenance check for auth endpoints, admin settings, and public settings
+    if (req.path.startsWith('/api/auth') || req.path === '/api/admin/settings' || req.path === '/api/settings') {
       return next();
     }
     
@@ -140,21 +190,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/blog/posts", async (req, res) => {
+  app.post("/api/blog/posts", requireAuthor, async (req, res) => {
     try {
-      if (!req.session.userId) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
-      
-      const user = await storage.getUser(req.session.userId);
-      if (!user?.canPost) {
-        return res.status(403).json({ error: "Posting disabled for your account" });
-      }
+      const user = await storage.getUser(req.session.userId!);
       
       const validatedData = insertBlogPostSchema.parse({
         ...req.body,
         authorId: req.session.userId
       });
+      
+      // Authors and non-admins/editors need to set status to pending_review
+      if (user!.role === 'author') {
+        validatedData.status = 'pending_review';
+        validatedData.published = false;
+      } else if (['admin', 'editor'].includes(user!.role)) {
+        // Admins and editors can publish directly
+        validatedData.status = validatedData.published ? 'published' : 'draft';
+      }
+      
       const post = await storage.createPost(validatedData);
       res.status(201).json(post);
     } catch (error) {
@@ -168,12 +221,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Authentication required" });
       }
       
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+      
       const post = await storage.getPost(req.params.id);
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
       
-      if (post.authorId !== req.session.userId) {
+      // Admin and editors can edit any post
+      // Authors can only edit their own posts
+      if (user.role !== 'admin' && user.role !== 'editor' && post.authorId !== req.session.userId) {
         return res.status(403).json({ error: "Not authorized" });
       }
       
@@ -190,12 +250,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Authentication required" });
       }
       
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+      
       const post = await storage.getPost(req.params.id);
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
       
-      if (post.authorId !== req.session.userId) {
+      // Admin can delete any post, others can only delete their own
+      if (user.role !== 'admin' && post.authorId !== req.session.userId) {
         return res.status(403).json({ error: "Not authorized" });
       }
       
@@ -220,6 +286,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.session.userId) {
         return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const user = await storage.getUser(req.session.userId);
+      if (user?.isBanned) {
+        return res.status(403).json({ error: "Your account has been banned" });
+      }
+      
+      if (user?.isMuted) {
+        return res.status(403).json({ error: "Your account has been muted" });
       }
       
       const validatedData = insertCommentSchema.parse({
@@ -406,47 +481,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/users/:id/ban", requireAdmin, async (req, res) => {
-    try {
-      const user = await storage.banUser(req.params.id);
-      res.json(user);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to ban user" });
-    }
-  });
-
-  app.post("/api/admin/users/:id/unban", requireAdmin, async (req, res) => {
-    try {
-      const user = await storage.unbanUser(req.params.id);
-      res.json(user);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to unban user" });
-    }
-  });
-
-  app.post("/api/admin/users/:id/toggle-posting", requireAdmin, async (req, res) => {
-    try {
-      const { canPost } = req.body;
-      const user = await storage.toggleUserPosting(req.params.id, canPost);
-      res.json(user);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to toggle posting" });
-    }
-  });
-
-  app.post("/api/admin/users/:id/role", requireAdmin, async (req, res) => {
-    try {
-      const { role } = req.body;
-      if (!['admin', 'moderator', 'user'].includes(role)) {
-        return res.status(400).json({ error: "Invalid role" });
-      }
-      const user = await storage.updateUserRole(req.params.id, role);
-      res.json(user);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update role" });
-    }
-  });
-
   app.delete("/api/admin/comments/:id", requireAdmin, async (req, res) => {
     try {
       await storage.deleteComment(req.params.id);
@@ -467,11 +501,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/admin/settings", requireAdmin, async (req, res) => {
     try {
-      const { maintenanceMode, maintenanceMessage } = req.body;
-      const settings = await storage.updateSiteSettings(maintenanceMode, maintenanceMessage);
+      const settings = await storage.updateSiteSettings(req.body);
       res.json(settings);
     } catch (error) {
       res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
+  // Admin - User Management
+  app.get("/api/admin/users", requireAdmin, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/role", requireAdmin, async (req, res) => {
+    try {
+      const { role } = req.body;
+      if (!['admin', 'editor', 'author', 'reader'].includes(role)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+      const user = await storage.updateUserRole(req.params.id, role);
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user role" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/ban", requireAdmin, async (req, res) => {
+    try {
+      const { isBanned } = req.body;
+      const user = await storage.toggleUserBan(req.params.id, isBanned);
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user ban status" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/mute", requireAdmin, async (req, res) => {
+    try {
+      const { isMuted } = req.body;
+      const user = await storage.toggleUserMute(req.params.id, isMuted);
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user mute status" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/posting", requireAdmin, async (req, res) => {
+    try {
+      const { canPost } = req.body;
+      const user = await storage.toggleUserPosting(req.params.id, canPost);
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user posting permission" });
+    }
+  });
+
+  // Admin - Announcements
+  app.get("/api/announcements", async (req, res) => {
+    try {
+      const activeOnly = req.query.active === 'true';
+      const announcements = await storage.getAllAnnouncements(activeOnly);
+      res.json(announcements);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch announcements" });
+    }
+  });
+
+  app.get("/api/announcements/:id", async (req, res) => {
+    try {
+      const announcement = await storage.getAnnouncement(req.params.id);
+      if (!announcement) {
+        return res.status(404).json({ error: "Announcement not found" });
+      }
+      res.json(announcement);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch announcement" });
+    }
+  });
+
+  // Public settings endpoint (for checking maintenance mode, etc)
+  app.get("/api/settings", async (req, res) => {
+    try {
+      const settings = await storage.getSiteSettings();
+      // Only return safe public fields
+      const publicSettings = {
+        maintenanceMode: settings.maintenanceMode,
+        maintenanceMessage: settings.maintenanceMessage,
+        siteTitle: settings.siteTitle,
+        siteDescription: settings.siteDescription,
+        siteLogo: settings.siteLogo,
+        favicon: settings.favicon,
+        ogImage: settings.ogImage,
+        footerMessage: settings.footerMessage
+      };
+      res.json(publicSettings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  app.post("/api/admin/announcements", requireAdmin, async (req, res) => {
+    try {
+      const announcement = await storage.createAnnouncement(req.body);
+      res.status(201).json(announcement);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to create announcement" });
+    }
+  });
+
+  app.patch("/api/admin/announcements/:id", requireAdmin, async (req, res) => {
+    try {
+      const announcement = await storage.updateAnnouncement(req.params.id, req.body);
+      if (!announcement) {
+        return res.status(404).json({ error: "Announcement not found" });
+      }
+      res.json(announcement);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update announcement" });
+    }
+  });
+
+  app.delete("/api/admin/announcements/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteAnnouncement(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete announcement" });
+    }
+  });
+
+  // Admin - Post Status Management
+  app.patch("/api/admin/posts/:id/status", requireAdmin, async (req, res) => {
+    try {
+      const { status } = req.body;
+      const validStatuses = ['draft', 'pending_review', 'approved', 'published', 'rejected'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+      const post = await storage.updatePostStatus(req.params.id, status);
+      res.json(post);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update post status" });
     }
   });
 
