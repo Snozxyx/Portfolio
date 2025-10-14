@@ -15,10 +15,12 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/lib/auth-context';
-import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings } from 'lucide-react';
+import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings, Megaphone, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import type { BlogPost, SafeUser, SiteSettings } from '@shared/schema';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import type { BlogPost, SafeUser, SiteSettings, Announcement, InsertAnnouncement } from '@shared/schema';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -44,25 +46,59 @@ export default function Dashboard() {
     enabled: user?.role === 'admin',
   });
 
-  const banMutation = useMutation({
-    mutationFn: (userId: string) => apiRequest('POST', `/api/admin/users/${userId}/ban`, {}),
+  const { data: announcements = [] } = useQuery<Announcement[]>({
+    queryKey: ['/api/announcements'],
+    enabled: user?.role === 'admin',
+  });
+
+  const createAnnouncementMutation = useMutation({
+    mutationFn: (data: InsertAnnouncement) => 
+      apiRequest('POST', '/api/admin/announcements', data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-      toast({ title: 'User banned successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
+      toast({ title: 'Announcement created successfully' });
     },
   });
 
-  const unbanMutation = useMutation({
-    mutationFn: (userId: string) => apiRequest('POST', `/api/admin/users/${userId}/unban`, {}),
+  const deleteAnnouncementMutation = useMutation({
+    mutationFn: (id: string) => 
+      apiRequest('DELETE', `/api/admin/announcements/${id}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
+      toast({ title: 'Announcement deleted successfully' });
+    },
+  });
+
+  const toggleAnnouncementMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => 
+      apiRequest('PATCH', `/api/admin/announcements/${id}`, { isActive }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
+      toast({ title: 'Announcement status updated' });
+    },
+  });
+
+  const banMutation = useMutation({
+    mutationFn: ({ userId, isBanned }: { userId: string; isBanned: boolean }) => 
+      apiRequest('PATCH', `/api/admin/users/${userId}/ban`, { isBanned }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-      toast({ title: 'User unbanned successfully' });
+      toast({ title: 'User ban status updated' });
+    },
+  });
+
+  const muteMutation = useMutation({
+    mutationFn: ({ userId, isMuted }: { userId: string; isMuted: boolean }) => 
+      apiRequest('PATCH', `/api/admin/users/${userId}/mute`, { isMuted }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      toast({ title: 'User mute status updated' });
     },
   });
 
   const togglePostingMutation = useMutation({
     mutationFn: ({ userId, canPost }: { userId: string; canPost: boolean }) => 
-      apiRequest('POST', `/api/admin/users/${userId}/toggle-posting`, { canPost }),
+      apiRequest('PATCH', `/api/admin/users/${userId}/posting`, { canPost }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       toast({ title: 'Posting permissions updated' });
@@ -71,7 +107,7 @@ export default function Dashboard() {
 
   const updateRoleMutation = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: string }) => 
-      apiRequest('POST', `/api/admin/users/${userId}/role`, { role }),
+      apiRequest('PATCH', `/api/admin/users/${userId}/role`, { role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       toast({ title: 'User role updated' });
@@ -231,19 +267,22 @@ export default function Dashboard() {
                               {u.id === user.id && <Badge variant="outline" className="text-xs">You</Badge>}
                             </div>
                             <p className="text-sm text-muted-foreground">@{u.username} • {u.email}</p>
-                            <div className="flex gap-2 mt-2">
+                            <div className="flex gap-2 mt-2 flex-wrap">
                               <Badge 
                                 variant={
                                   u.role === 'admin' ? 'default' : 
-                                  u.role === 'moderator' ? 'secondary' : 
+                                  u.role === 'editor' ? 'secondary' : 
+                                  u.role === 'author' ? 'outline' :
                                   'outline'
                                 }
                               >
                                 {u.role === 'admin' ? '👑 Admin' : 
-                                 u.role === 'moderator' ? '🛡️ Moderator' : 
-                                 '👤 User'}
+                                 u.role === 'editor' ? '✏️ Editor' : 
+                                 u.role === 'author' ? '📝 Author' :
+                                 '👤 Reader'}
                               </Badge>
                               {u.isBanned && <Badge variant="destructive">🚫 Banned</Badge>}
+                              {u.isMuted && !u.isBanned && <Badge variant="secondary">🔇 Muted</Badge>}
                               {!u.canPost && !u.isBanned && <Badge variant="secondary">📝 Cannot Post</Badge>}
                               {u.canPost && !u.isBanned && <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20">✓ Can Post</Badge>}
                             </div>
@@ -259,8 +298,9 @@ export default function Dashboard() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="admin">👑 Admin</SelectItem>
-                                <SelectItem value="moderator">🛡️ Moderator</SelectItem>
-                                <SelectItem value="user">👤 User</SelectItem>
+                                <SelectItem value="editor">✏️ Editor</SelectItem>
+                                <SelectItem value="author">📝 Author</SelectItem>
+                                <SelectItem value="reader">👤 Reader</SelectItem>
                               </SelectContent>
                             </Select>
                             {u.id !== user.id && (
@@ -275,8 +315,16 @@ export default function Dashboard() {
                                 </Button>
                                 <Button
                                   size="sm"
+                                  variant="outline"
+                                  onClick={() => muteMutation.mutate({ userId: u.id, isMuted: !u.isMuted })}
+                                  disabled={u.isBanned}
+                                >
+                                  {u.isMuted ? 'Unmute' : 'Mute'}
+                                </Button>
+                                <Button
+                                  size="sm"
                                   variant={u.isBanned ? 'default' : 'destructive'}
-                                  onClick={() => u.isBanned ? unbanMutation.mutate(u.id) : banMutation.mutate(u.id)}
+                                  onClick={() => banMutation.mutate({ userId: u.id, isBanned: !u.isBanned })}
                                 >
                                   {u.isBanned ? 'Unban' : 'Ban'}
                                 </Button>
@@ -285,6 +333,119 @@ export default function Dashboard() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-card border border-card-border rounded-xl p-4 md:p-6 mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Megaphone className="w-5 h-5" />
+                        Announcements
+                      </h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="p-4 bg-background rounded-lg border border-border">
+                        <h4 className="font-medium mb-3">Create New Announcement</h4>
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          const form = e.target as HTMLFormElement;
+                          const formData = new FormData(form);
+                          createAnnouncementMutation.mutate({
+                            title: formData.get('title') as string,
+                            message: formData.get('message') as string,
+                            type: (formData.get('type') as string) || 'info',
+                            displayType: (formData.get('displayType') as string) || 'banner',
+                            isActive: true,
+                            startDate: null,
+                            endDate: null,
+                          });
+                          form.reset();
+                        }} className="space-y-3">
+                          <div>
+                            <Label htmlFor="title">Title</Label>
+                            <Input id="title" name="title" required placeholder="Announcement title" />
+                          </div>
+                          <div>
+                            <Label htmlFor="message">Message</Label>
+                            <Textarea id="message" name="message" required placeholder="Announcement message" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="type">Type</Label>
+                              <Select name="type" defaultValue="info">
+                                <SelectTrigger id="type">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="info">ℹ️ Info</SelectItem>
+                                  <SelectItem value="warning">⚠️ Warning</SelectItem>
+                                  <SelectItem value="alert">🚨 Alert</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor="displayType">Display</Label>
+                              <Select name="displayType" defaultValue="banner">
+                                <SelectTrigger id="displayType">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="banner">Banner</SelectItem>
+                                  <SelectItem value="popup">Popup</SelectItem>
+                                  <SelectItem value="notification">Notification</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <Button type="submit" className="w-full">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Create Announcement
+                          </Button>
+                        </form>
+                      </div>
+
+                      {announcements.length > 0 ? (
+                        <div className="space-y-2">
+                          {announcements.map((announcement) => (
+                            <div key={announcement.id} className="p-3 bg-background rounded-lg border border-border flex items-start justify-between gap-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h5 className="font-medium text-sm">{announcement.title}</h5>
+                                  <Badge variant={
+                                    announcement.type === 'alert' ? 'destructive' :
+                                    announcement.type === 'warning' ? 'secondary' :
+                                    'default'
+                                  } className="text-xs">
+                                    {announcement.type}
+                                  </Badge>
+                                  <Badge variant="outline" className="text-xs">
+                                    {announcement.displayType}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">{announcement.message}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={announcement.isActive}
+                                  onCheckedChange={(checked) => 
+                                    toggleAnnouncementMutation.mutate({ id: announcement.id, isActive: checked })
+                                  }
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => deleteAnnouncementMutation.mutate(announcement.id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">No announcements yet</p>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -5,6 +5,7 @@ import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "./lib/auth-context";
+import { AnnouncementBanner } from "./components/AnnouncementBanner";
 import Home from "./pages/home";
 import NotFound from "./pages/not-found";
 import BlogList from "./pages/blog-list";
@@ -21,28 +22,31 @@ import type { SiteSettings } from "@shared/schema";
 function Router() {
   const { user } = useAuth();
   const { data: settings } = useQuery<SiteSettings>({
-    queryKey: ['/api/admin/settings'],
+    queryKey: ['/api/settings'],
     retry: false,
   });
 
   // Show maintenance page if maintenance mode is on and user is not admin
   if (settings?.maintenanceMode && user?.role !== 'admin') {
-    return <MaintenancePage message={settings.maintenanceMessage} />;
+    return <MaintenancePage message={settings.maintenanceMessage || undefined} />;
   }
 
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/login" component={Login} />
-      <Route path="/register" component={Register} />
-      <Route path="/blog" component={BlogList} />
-      <Route path="/blog/create" component={BlogCreate} />
-      <Route path="/blog/:id/edit" component={BlogEdit} />
-      <Route path="/blog/:id" component={BlogPost} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/profile/:id" component={Profile} />
-      <Route component={NotFound} />
-    </Switch>
+    <>
+      <AnnouncementBanner />
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/login" component={Login} />
+        <Route path="/register" component={Register} />
+        <Route path="/blog" component={BlogList} />
+        <Route path="/blog/create" component={BlogCreate} />
+        <Route path="/blog/:id/edit" component={BlogEdit} />
+        <Route path="/blog/:id" component={BlogPost} />
+        <Route path="/dashboard" component={Dashboard} />
+        <Route path="/profile/:id" component={Profile} />
+        <Route component={NotFound} />
+      </Switch>
+    </>
   );
 }
 
