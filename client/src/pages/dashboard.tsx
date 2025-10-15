@@ -15,12 +15,12 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/lib/auth-context';
-import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings, Megaphone, Plus, Trash2 } from 'lucide-react';
+import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings, Megaphone, Plus, Trash2, Briefcase, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { BlogPost, SafeUser, SiteSettings, Announcement, InsertAnnouncement } from '@shared/schema';
+import type { BlogPost, SafeUser, SiteSettings, Announcement, InsertAnnouncement, Project, Skill } from '@shared/schema';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -51,6 +51,16 @@ export default function Dashboard() {
     enabled: user?.role === 'admin',
   });
 
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ['/api/projects'],
+    enabled: user?.role === 'admin',
+  });
+
+  const { data: skills = [] } = useQuery<Skill[]>({
+    queryKey: ['/api/skills'],
+    enabled: user?.role === 'admin',
+  });
+
   const createAnnouncementMutation = useMutation({
     mutationFn: (data: InsertAnnouncement) => 
       apiRequest('POST', '/api/admin/announcements', data),
@@ -66,6 +76,51 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
       toast({ title: 'Announcement deleted successfully' });
+    },
+  });
+
+  const deletePostMutation = useMutation({
+    mutationFn: (id: string) => 
+      apiRequest('DELETE', `/api/blog/posts/${id}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/blog/posts'] });
+      toast({ title: 'Post deleted successfully' });
+    },
+  });
+
+  const createProjectMutation = useMutation({
+    mutationFn: (data: any) => 
+      apiRequest('POST', '/api/projects', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      toast({ title: 'Project created successfully' });
+    },
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: (id: string) => 
+      apiRequest('DELETE', `/api/projects/${id}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      toast({ title: 'Project deleted successfully' });
+    },
+  });
+
+  const createSkillMutation = useMutation({
+    mutationFn: (data: any) => 
+      apiRequest('POST', '/api/skills', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/skills'] });
+      toast({ title: 'Skill created successfully' });
+    },
+  });
+
+  const deleteSkillMutation = useMutation({
+    mutationFn: (id: string) => 
+      apiRequest('DELETE', `/api/skills/${id}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/skills'] });
+      toast({ title: 'Skill deleted successfully' });
     },
   });
 
@@ -339,6 +394,192 @@ export default function Dashboard() {
                   <div className="bg-card border border-card-border rounded-xl p-4 md:p-6 mt-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Briefcase className="w-5 h-5" />
+                        Projects Management
+                      </h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="p-4 bg-background rounded-lg border border-border">
+                        <h4 className="font-medium mb-3">Add New Project</h4>
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          const form = e.target as HTMLFormElement;
+                          const formData = new FormData(form);
+                          createProjectMutation.mutate({
+                            name: formData.get('name') as string,
+                            description: formData.get('description') as string,
+                            techStack: (formData.get('techStack') as string).split(',').map(s => s.trim()),
+                            features: (formData.get('features') as string).split(',').map(s => s.trim()),
+                            githubUrl: formData.get('githubUrl') as string || null,
+                            liveUrl: formData.get('liveUrl') as string || null,
+                            imageUrl: formData.get('imageUrl') as string || null,
+                            order: formData.get('order') as string || '0',
+                          });
+                          form.reset();
+                        }} className="space-y-3">
+                          <div>
+                            <Label htmlFor="projectName">Project Name</Label>
+                            <Input id="projectName" name="name" required placeholder="My Awesome Project" />
+                          </div>
+                          <div>
+                            <Label htmlFor="projectDescription">Description</Label>
+                            <Textarea id="projectDescription" name="description" required placeholder="Brief description" />
+                          </div>
+                          <div>
+                            <Label htmlFor="techStack">Tech Stack (comma-separated)</Label>
+                            <Input id="techStack" name="techStack" required placeholder="React, Node.js, TypeScript" />
+                          </div>
+                          <div>
+                            <Label htmlFor="features">Features (comma-separated)</Label>
+                            <Input id="features" name="features" required placeholder="Real-time updates, User authentication" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="githubUrl">GitHub URL</Label>
+                              <Input id="githubUrl" name="githubUrl" placeholder="https://github.com/..." />
+                            </div>
+                            <div>
+                              <Label htmlFor="liveUrl">Live URL</Label>
+                              <Input id="liveUrl" name="liveUrl" placeholder="https://..." />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="imageUrl">Image URL</Label>
+                              <Input id="imageUrl" name="imageUrl" placeholder="https://..." />
+                            </div>
+                            <div>
+                              <Label htmlFor="order">Order</Label>
+                              <Input id="order" name="order" type="number" placeholder="0" />
+                            </div>
+                          </div>
+                          <Button type="submit" className="w-full">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Project
+                          </Button>
+                        </form>
+                      </div>
+
+                      {projects.length > 0 ? (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm">Existing Projects</h4>
+                          {projects.map((project) => (
+                            <div key={project.id} className="p-3 bg-background rounded-lg border border-border flex items-start justify-between gap-3">
+                              <div className="flex-1">
+                                <h5 className="font-medium text-sm">{project.name}</h5>
+                                <p className="text-xs text-muted-foreground line-clamp-1">{project.description}</p>
+                                <div className="flex gap-2 mt-1 flex-wrap">
+                                  {project.techStack.slice(0, 3).map((tech) => (
+                                    <Badge key={tech} variant="outline" className="text-xs">{tech}</Badge>
+                                  ))}
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => deleteProjectMutation.mutate(project.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">No projects yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-card border border-card-border rounded-xl p-4 md:p-6 mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Zap className="w-5 h-5" />
+                        Skills Management
+                      </h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="p-4 bg-background rounded-lg border border-border">
+                        <h4 className="font-medium mb-3">Add New Skill</h4>
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          const form = e.target as HTMLFormElement;
+                          const formData = new FormData(form);
+                          createSkillMutation.mutate({
+                            name: formData.get('skillName') as string,
+                            category: formData.get('category') as string,
+                            proficiency: formData.get('proficiency') as string,
+                            icon: formData.get('icon') as string || null,
+                          });
+                          form.reset();
+                        }} className="space-y-3">
+                          <div>
+                            <Label htmlFor="skillName">Skill Name</Label>
+                            <Input id="skillName" name="skillName" required placeholder="JavaScript" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="category">Category</Label>
+                              <Input id="category" name="category" required placeholder="Languages" />
+                            </div>
+                            <div>
+                              <Label htmlFor="proficiency">Proficiency</Label>
+                              <Select name="proficiency" defaultValue="intermediate">
+                                <SelectTrigger id="proficiency">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="beginner">Beginner</SelectItem>
+                                  <SelectItem value="intermediate">Intermediate</SelectItem>
+                                  <SelectItem value="advanced">Advanced</SelectItem>
+                                  <SelectItem value="expert">Expert</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor="icon">Icon URL (optional)</Label>
+                            <Input id="icon" name="icon" placeholder="https://..." />
+                          </div>
+                          <Button type="submit" className="w-full">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Skill
+                          </Button>
+                        </form>
+                      </div>
+
+                      {skills.length > 0 ? (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm">Existing Skills</h4>
+                          {skills.map((skill) => (
+                            <div key={skill.id} className="p-3 bg-background rounded-lg border border-border flex items-start justify-between gap-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h5 className="font-medium text-sm">{skill.name}</h5>
+                                  <Badge variant="outline" className="text-xs capitalize">{skill.proficiency}</Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">{skill.category}</p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => deleteSkillMutation.mutate(skill.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">No skills yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-card border border-card-border rounded-xl p-4 md:p-6 mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
                         <Megaphone className="w-5 h-5" />
                         Announcements
                       </h3>
@@ -493,9 +734,24 @@ export default function Dashboard() {
                         {post.views || 0}
                       </span>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/blog/${post.id}/edit`}>Edit</Link>
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/blog/${post.id}/edit`}>Edit</Link>
+                      </Button>
+                      {user?.role === 'admin' && (
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this post?')) {
+                              deletePostMutation.mutate(post.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
