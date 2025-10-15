@@ -41,6 +41,10 @@ export default function BlogEdit() {
   const [buttonText, setButtonText] = useState('');
   const [htmlCode, setHtmlCode] = useState('');
   const [mdCode, setMdCode] = useState('');
+  const [codeBlockLang, setCodeBlockLang] = useState('javascript');
+  const [codeBlockContent, setCodeBlockContent] = useState('');
+  const [codeBlockPreview, setCodeBlockPreview] = useState(false);
+  const [codeBlockTitle, setCodeBlockTitle] = useState('');
 
   const { data: post, isLoading } = useQuery<BlogPost>({
     queryKey: ['/api/blog/posts', id],
@@ -121,6 +125,22 @@ export default function BlogEdit() {
       const currentContent = form.getValues('content');
       form.setValue('content', currentContent + `\n${mdCode}\n`);
       setMdCode('');
+    }
+  };
+
+  const insertCodeBlock = () => {
+    if (codeBlockContent) {
+      const currentContent = form.getValues('content');
+      let langString = codeBlockLang;
+      if (codeBlockPreview) langString += ':preview';
+      if (codeBlockTitle) langString += ` title=${codeBlockTitle}`;
+      
+      const codeBlock = `\n\`\`\`${langString}\n${codeBlockContent}\n\`\`\`\n`;
+      form.setValue('content', currentContent + codeBlock);
+      setCodeBlockContent('');
+      setCodeBlockLang('javascript');
+      setCodeBlockPreview(false);
+      setCodeBlockTitle('');
     }
   };
 
@@ -351,6 +371,57 @@ export default function BlogEdit() {
                               className="font-mono text-sm"
                             />
                             <Button onClick={insertMarkdown} className="w-full">Insert</Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button type="button" variant="outline" size="sm">
+                            <SquareCode className="w-4 h-4 mr-1" />
+                            Code Block
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Insert Code Block</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-sm font-medium">Language</label>
+                                <Input
+                                  placeholder="javascript, python, html, etc."
+                                  value={codeBlockLang}
+                                  onChange={(e) => setCodeBlockLang(e.target.value)}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">Title (optional)</label>
+                                <Input
+                                  placeholder="e.g., example.js"
+                                  value={codeBlockTitle}
+                                  onChange={(e) => setCodeBlockTitle(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={codeBlockPreview}
+                                onCheckedChange={setCodeBlockPreview}
+                              />
+                              <label className="text-sm font-medium">Enable preview/run option</label>
+                            </div>
+
+                            <Textarea
+                              placeholder="Paste your code here..."
+                              value={codeBlockContent}
+                              onChange={(e) => setCodeBlockContent(e.target.value)}
+                              rows={12}
+                              className="font-mono text-sm"
+                            />
+                            <Button onClick={insertCodeBlock} className="w-full">Insert Code Block</Button>
                           </div>
                         </DialogContent>
                       </Dialog>

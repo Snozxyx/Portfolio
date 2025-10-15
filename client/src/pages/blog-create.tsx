@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, Code, Save, Send, Image, Link2, SquareCode, FileCode } from 'lucide-react';
@@ -44,6 +45,10 @@ export default function BlogCreate() {
   const [buttonText, setButtonText] = useState('');
   const [htmlCode, setHtmlCode] = useState('');
   const [mdCode, setMdCode] = useState('');
+  const [codeBlockLang, setCodeBlockLang] = useState('javascript');
+  const [codeBlockContent, setCodeBlockContent] = useState('');
+  const [codeBlockPreview, setCodeBlockPreview] = useState(false);
+  const [codeBlockTitle, setCodeBlockTitle] = useState('');
 
   const form = useForm({
     resolver: zodResolver(postSchema),
@@ -139,6 +144,22 @@ export default function BlogCreate() {
       const currentContent = form.getValues('content');
       form.setValue('content', currentContent + `\n${mdCode}\n`);
       setMdCode('');
+    }
+  };
+
+  const insertCodeBlock = () => {
+    if (codeBlockContent) {
+      const currentContent = form.getValues('content');
+      let langString = codeBlockLang;
+      if (codeBlockPreview) langString += ':preview';
+      if (codeBlockTitle) langString += ` title=${codeBlockTitle}`;
+      
+      const codeBlock = `\n\`\`\`${langString}\n${codeBlockContent}\n\`\`\`\n`;
+      form.setValue('content', currentContent + codeBlock);
+      setCodeBlockContent('');
+      setCodeBlockLang('javascript');
+      setCodeBlockPreview(false);
+      setCodeBlockTitle('');
     }
   };
 
@@ -350,6 +371,57 @@ export default function BlogCreate() {
                                     className="font-mono text-sm"
                                   />
                                   <Button onClick={insertMarkdown} className="w-full">Insert</Button>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button type="button" variant="outline" size="sm">
+                                  <SquareCode className="w-4 h-4 mr-1" />
+                                  Code Block
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-2xl">
+                                <DialogHeader>
+                                  <DialogTitle>Insert Code Block</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <Label>Language</Label>
+                                      <Input
+                                        placeholder="javascript, python, html, etc."
+                                        value={codeBlockLang}
+                                        onChange={(e) => setCodeBlockLang(e.target.value)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Title (optional)</Label>
+                                      <Input
+                                        placeholder="e.g., example.js"
+                                        value={codeBlockTitle}
+                                        onChange={(e) => setCodeBlockTitle(e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-2">
+                                    <Switch
+                                      checked={codeBlockPreview}
+                                      onCheckedChange={setCodeBlockPreview}
+                                    />
+                                    <Label>Enable preview/run option</Label>
+                                  </div>
+
+                                  <Textarea
+                                    placeholder="Paste your code here..."
+                                    value={codeBlockContent}
+                                    onChange={(e) => setCodeBlockContent(e.target.value)}
+                                    rows={12}
+                                    className="font-mono text-sm"
+                                  />
+                                  <Button onClick={insertCodeBlock} className="w-full">Insert Code Block</Button>
                                 </div>
                               </DialogContent>
                             </Dialog>

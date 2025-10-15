@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { CodeBlock } from '@/components/CodeBlock';
 import { ParticleBackground } from '@/components/ParticleBackground';
 import { FloatingNav } from '@/components/FloatingNav';
 import { MobileNav } from '@/components/MobileNav';
@@ -70,12 +71,58 @@ export default function BlogPostPage() {
     },
   });
 
+  // Configure marked renderer for custom code blocks
+  const renderer = useMemo(() => {
+    const customRenderer = new marked.Renderer();
+    
+    customRenderer.code = (code, language) => {
+      const lang = language || 'text';
+      const showPreview = lang.includes(':preview');
+      const actualLang = showPreview ? lang.replace(':preview', '') : lang;
+      const title = lang.includes('title=') ? lang.split('title=')[1]?.split(' ')[0] : undefined;
+      
+      // Return a placeholder that we'll replace with React components
+      return `<div class="code-block" data-code="${encodeURIComponent(code)}" data-lang="${actualLang}" data-preview="${showPreview}" data-title="${title || ''}"></div>`;
+    };
+    
+    return customRenderer;
+  }, []);
+
   // Parse markdown content to HTML
   const htmlContent = useMemo(() => {
     if (!post) return '';
+    marked.setOptions({ renderer });
     const rawHtml = marked.parse(post.content) as string;
     return DOMPurify.sanitize(rawHtml);
-  }, [post?.content]);
+  }, [post?.content, renderer]);
+
+  // Render code blocks as React components
+  useEffect(() => {
+    if (!post) return;
+    
+    const codeBlocks = document.querySelectorAll('.code-block');
+    codeBlocks.forEach((block) => {
+      const code = decodeURIComponent(block.getAttribute('data-code') || '');
+      const lang = block.getAttribute('data-lang') || 'text';
+      const showPreview = block.getAttribute('data-preview') === 'true';
+      const title = block.getAttribute('data-title') || undefined;
+      
+      // Create React element
+      const root = document.createElement('div');
+      block.replaceWith(root);
+      
+      import('react-dom/client').then(({ createRoot }) => {
+        createRoot(root).render(
+          <CodeBlock 
+            code={code} 
+            language={lang} 
+            showPreview={showPreview}
+            title={title}
+          />
+        );
+      });
+    });
+  }, [htmlContent, post]);
 
   if (!post) return null;
 
