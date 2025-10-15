@@ -37,6 +37,13 @@ export const siteSettings = pgTable("site_settings", {
   contactGithub: text("contact_github"),
   contactLinkedin: text("contact_linkedin"),
   contactTwitter: text("contact_twitter"),
+  // Page visibility
+  showAnimePage: boolean("show_anime_page").default(true).notNull(),
+  showGamesPage: boolean("show_games_page").default(true).notNull(),
+  showAnimeWidget: boolean("show_anime_widget").default(true).notNull(),
+  showGamesWidget: boolean("show_games_widget").default(true).notNull(),
+  // Steam profile
+  steamProfileId: text("steam_profile_id"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -120,6 +127,21 @@ export const postStars = pgTable("post_stars", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const animeEntries = pgTable("anime_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  imageUrl: text("image_url"),
+  videoUrl: text("video_url"),
+  clipUrl: text("clip_url"),
+  status: text("status").notNull().default("watching"), // watching, completed, plan_to_watch
+  rating: integer("rating"),
+  episodes: integer("episodes"),
+  notes: text("notes"),
+  order: integer("order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -155,6 +177,12 @@ export const insertCommentSchema = createInsertSchema(blogComments).omit({
 });
 
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAnimeSchema = createInsertSchema(animeEntries).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -196,5 +224,10 @@ export type SiteSettings = typeof siteSettings.$inferSelect;
 
 export type Announcement = typeof announcements.$inferSelect;
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
+
+export type AnimeEntry = typeof animeEntries.$inferSelect;
+export type InsertAnime = z.infer<typeof insertAnimeSchema>;
+
+export type ActivityLog = typeof activityLogs.$inferSelect;
 
 export type ActivityLog = typeof activityLogs.$inferSelect;

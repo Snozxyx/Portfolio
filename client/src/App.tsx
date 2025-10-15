@@ -17,6 +17,9 @@ import Register from "./pages/register";
 import Dashboard from "./pages/dashboard";
 import Profile from "./pages/profile";
 import MaintenancePage from "./pages/maintenance";
+import AnimePage from "./pages/anime";
+import GamesPage from "./pages/games";
+import AdminLogsPage from "./pages/admin-logs";
 import type { SiteSettings } from "@shared/schema";
 
 function Router() {
@@ -49,6 +52,9 @@ function Router() {
         <Route path="/blog/:id" component={BlogPost} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/profile/:id" component={Profile} />
+        {settings?.showAnimePage && <Route path="/anime" component={AnimePage} />}
+        {settings?.showGamesPage && <Route path="/games" component={GamesPage} />}
+        <Route path="/admin/logs" component={AdminLogsPage} />
         <Route component={NotFound} />
       </Switch>
     </>
