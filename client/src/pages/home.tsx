@@ -7,6 +7,8 @@ import { StatsSection } from '@/components/StatsSection';
 import { ProjectsSection } from '@/components/ProjectsSection';
 import { SkillsSection } from '@/components/SkillsSection';
 import { BlogWidget } from '@/components/BlogWidget';
+import { AnimeWidget } from '@/components/AnimeWidget';
+import { GamesWidget } from '@/components/GamesWidget';
 import { ContactSection } from '@/components/ContactSection';
 import { Footer } from '@/components/Footer';
 import { useQuery } from '@tanstack/react-query';
@@ -48,6 +50,8 @@ export default function Home() {
       )}
       <SkillsSection />
       <BlogWidget />
+      <AnimeWidget />
+      <GamesWidget />
       <ContactSection />
       <Footer />
     </div>
