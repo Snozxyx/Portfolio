@@ -16,12 +16,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/lib/auth-context';
-import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings, Megaphone, Plus, Trash2, Briefcase, Zap, Github, ExternalLink, GitFork, RefreshCw } from 'lucide-react';
+import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings, Megaphone, Plus, Trash2, Briefcase, Zap, Github, ExternalLink, GitFork, RefreshCw, Film, Gamepad2, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { BlogPost, SafeUser, SiteSettings, Announcement, InsertAnnouncement, Project, Skill } from '@shared/schema';
+import type { BlogPost, SafeUser, SiteSettings, Announcement, InsertAnnouncement, Project, Skill, AnimeEntry, InsertAnime } from '@shared/schema';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -67,6 +67,12 @@ export default function Dashboard() {
     queryKey: ['/api/github/repos/snozxyx'],
     enabled: user?.role === 'admin',
     staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Anime query
+  const { data: animeList = [] } = useQuery<AnimeEntry[]>({
+    queryKey: ['/api/anime'],
+    enabled: user?.role === 'admin',
   });
 
   const createAnnouncementMutation = useMutation({
@@ -129,6 +135,26 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/skills'] });
       toast({ title: 'Skill deleted successfully' });
+    },
+  });
+
+  const createAnimeMutation = useMutation({
+    mutationFn: async (data: InsertAnime) => {
+      const res = await apiRequest('POST', '/api/anime', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/anime'] });
+      toast({ title: 'Anime entry created successfully' });
+    },
+  });
+
+  const deleteAnimeMutation = useMutation({
+    mutationFn: (id: string) => 
+      apiRequest('DELETE', `/api/anime/${id}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/anime'] });
+      toast({ title: 'Anime entry deleted successfully' });
     },
   });
 
@@ -225,6 +251,14 @@ export default function Dashboard() {
               <p className="text-muted-foreground font-sans">Welcome back, {user.displayName || user.username}!</p>
             </div>
             <div className="flex gap-2 md:gap-4">
+              {user.role === 'admin' && (
+                <Button asChild size="sm" variant="outline" className="md:h-10">
+                  <Link href="/admin/logs">
+                    <Activity className="w-4 h-4 md:mr-2" />
+                    <span className="hidden md:inline">Logs</span>
+                  </Link>
+                </Button>
+              )}
               <Button asChild size="sm" className="md:h-10" data-testid="button-new-post">
                 <Link href="/blog/create">
                   <PenSquare className="w-4 h-4 md:mr-2" />
@@ -476,6 +510,93 @@ export default function Dashboard() {
                               updateSettingsMutation.mutate({ contactTwitter: e.target.value })
                             }
                             placeholder="https://twitter.com/username"
+                          />
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Games & Media</h3>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Steam Profile ID</label>
+                          <Input
+                            key={siteSettings?.steamProfileId}
+                            defaultValue={siteSettings?.steamProfileId || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ steamProfileId: e.target.value })
+                            }
+                            placeholder="Snozxyx"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Your Steam custom URL ID (from steamcommunity.com/id/YOUR_ID)
+                          </p>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Page Visibility</h3>
+
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">Show Anime Page</label>
+                            <p className="text-sm text-muted-foreground">
+                              Enable /anime route for visitors
+                            </p>
+                          </div>
+                          <Switch
+                            checked={siteSettings?.showAnimePage || false}
+                            onCheckedChange={(checked) => 
+                              updateSettingsMutation.mutate({ showAnimePage: checked })
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">Show Games Page</label>
+                            <p className="text-sm text-muted-foreground">
+                              Enable /games route for visitors
+                            </p>
+                          </div>
+                          <Switch
+                            checked={siteSettings?.showGamesPage || false}
+                            onCheckedChange={(checked) => 
+                              updateSettingsMutation.mutate({ showGamesPage: checked })
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">Show Anime Widget</label>
+                            <p className="text-sm text-muted-foreground">
+                              Display anime widget on home page
+                            </p>
+                          </div>
+                          <Switch
+                            checked={siteSettings?.showAnimeWidget || false}
+                            onCheckedChange={(checked) => 
+                              updateSettingsMutation.mutate({ showAnimeWidget: checked })
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">Show Games Widget</label>
+                            <p className="text-sm text-muted-foreground">
+                              Display games widget on home page
+                            </p>
+                          </div>
+                          <Switch
+                            checked={siteSettings?.showGamesWidget || false}
+                            onCheckedChange={(checked) => 
+                              updateSettingsMutation.mutate({ showGamesWidget: checked })
+                            }
                           />
                         </div>
                       </div>
@@ -742,6 +863,128 @@ export default function Dashboard() {
                         No repositories found or failed to load
                       </p>
                     )}
+                  </div>
+
+                  {/* Anime Management Section */}
+                  <div className="bg-card border border-card-border rounded-xl p-4 md:p-6 mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Film className="w-5 h-5" />
+                        Anime Management
+                      </h3>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="p-4 bg-background rounded-lg border border-border">
+                        <h4 className="font-medium mb-3">Add New Anime</h4>
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          const form = e.target as HTMLFormElement;
+                          const formData = new FormData(form);
+                          createAnimeMutation.mutate({
+                            name: formData.get('name') as string,
+                            imageUrl: (formData.get('imageUrl') as string) || null,
+                            videoUrl: (formData.get('videoUrl') as string) || null,
+                            clipUrl: (formData.get('clipUrl') as string) || null,
+                            status: (formData.get('status') as string) || 'watching',
+                            rating: formData.get('rating') ? parseInt(formData.get('rating') as string) : null,
+                            episodes: formData.get('episodes') ? parseInt(formData.get('episodes') as string) : null,
+                            notes: (formData.get('notes') as string) || null,
+                            order: formData.get('order') ? parseInt(formData.get('order') as string) : 0,
+                          });
+                          form.reset();
+                        }} className="space-y-3">
+                          <div>
+                            <Label htmlFor="animeName">Anime Name</Label>
+                            <Input id="animeName" name="name" required placeholder="Attack on Titan" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="animeImageUrl">Image URL</Label>
+                              <Input id="animeImageUrl" name="imageUrl" placeholder="https://..." />
+                            </div>
+                            <div>
+                              <Label htmlFor="animeStatus">Status</Label>
+                              <Select name="status" defaultValue="watching">
+                                <SelectTrigger id="animeStatus">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="watching">Watching</SelectItem>
+                                  <SelectItem value="completed">Completed</SelectItem>
+                                  <SelectItem value="plan_to_watch">Plan to Watch</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <Label htmlFor="animeRating">Rating (1-10)</Label>
+                              <Input id="animeRating" name="rating" type="number" min="1" max="10" placeholder="8" />
+                            </div>
+                            <div>
+                              <Label htmlFor="animeEpisodes">Episodes</Label>
+                              <Input id="animeEpisodes" name="episodes" type="number" placeholder="24" />
+                            </div>
+                            <div>
+                              <Label htmlFor="animeOrder">Order</Label>
+                              <Input id="animeOrder" name="order" type="number" placeholder="0" />
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor="animeVideoUrl">Full Video URL</Label>
+                            <Input id="animeVideoUrl" name="videoUrl" placeholder="https://..." />
+                          </div>
+                          <div>
+                            <Label htmlFor="animeClipUrl">Clip URL</Label>
+                            <Input id="animeClipUrl" name="clipUrl" placeholder="https://..." />
+                          </div>
+                          <div>
+                            <Label htmlFor="animeNotes">Notes</Label>
+                            <Textarea id="animeNotes" name="notes" placeholder="Your thoughts..." rows={2} />
+                          </div>
+                          <Button type="submit" className="w-full">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Anime
+                          </Button>
+                        </form>
+                      </div>
+
+                      {animeList.length > 0 ? (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm">Existing Anime</h4>
+                          {animeList.map((anime) => (
+                            <div key={anime.id} className="p-3 bg-background rounded-lg border border-border flex items-start justify-between gap-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h5 className="font-medium text-sm">{anime.name}</h5>
+                                  {anime.rating && (
+                                    <Badge variant="outline" className="text-xs">
+                                      ⭐ {anime.rating}/10
+                                    </Badge>
+                                  )}
+                                  <Badge variant="secondary" className="text-xs capitalize">
+                                    {anime.status.replace('_', ' ')}
+                                  </Badge>
+                                </div>
+                                {anime.notes && (
+                                  <p className="text-xs text-muted-foreground line-clamp-1">{anime.notes}</p>
+                                )}
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => deleteAnimeMutation.mutate(anime.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">No anime entries yet</p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="bg-card border border-card-border rounded-xl p-4 md:p-6 mt-6">
