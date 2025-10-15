@@ -63,7 +63,7 @@ export default function Dashboard() {
   });
 
   // GitHub repos query
-  const { data: githubRepos = [], refetch: refetchGithubRepos } = useQuery({
+  const { data: githubRepos = [], refetch: refetchGithubRepos } = useQuery<any[]>({
     queryKey: ['/api/github/repos/snozxyx'],
     enabled: user?.role === 'admin',
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -178,8 +178,10 @@ export default function Dashboard() {
   });
 
   const updateSettingsMutation = useMutation({
-    mutationFn: (data: { maintenanceMode: boolean; maintenanceMessage?: string; siteTitle?: string; siteDescription?: string; ogImage?: string; footerMessage?: string }) => 
-      apiRequest('POST', '/api/admin/settings', data),
+    mutationFn: async (data: Partial<SiteSettings>) => {
+      const res = await apiRequest('POST', '/api/admin/settings', data);
+      return res.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
       toast({ title: 'Settings updated' });

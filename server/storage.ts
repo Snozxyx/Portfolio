@@ -299,6 +299,13 @@ export class MemStorage implements IStorage {
       favicon: null,
       ogImage: null,
       footerMessage: "Built with passion and code",
+      homeHeroTitle: null,
+      homeHeroSubtitle: null,
+      homeAboutText: null,
+      contactEmail: null,
+      contactGithub: null,
+      contactLinkedin: null,
+      contactTwitter: null,
       updatedAt: new Date()
     });
   }
@@ -704,6 +711,13 @@ export class MemStorage implements IStorage {
         favicon: null,
         ogImage: null,
         footerMessage: "Built with passion and code",
+        homeHeroTitle: null,
+        homeHeroSubtitle: null,
+        homeAboutText: null,
+        contactEmail: null,
+        contactGithub: null,
+        contactLinkedin: null,
+        contactTwitter: null,
         updatedAt: new Date()
       };
       this.siteSettings.set("settings", defaultSettings);
