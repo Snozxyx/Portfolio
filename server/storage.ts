@@ -1236,4 +1236,5 @@ export class DbStorage implements IStorage {
   }
 }
 
+// Use DbStorage for production (PostgreSQL)
 export const storage = new DbStorage();

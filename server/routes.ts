@@ -4,18 +4,47 @@ import { storage } from "./storage";
 import { insertProjectSchema, insertSkillSchema, insertUserSchema, loginSchema, insertBlogPostSchema, insertCommentSchema } from "@shared/schema";
 import "./types";
 
+// Maintenance mode middleware
+async function checkMaintenanceMode(req: any, res: any, next: any) {
+  // Skip maintenance check for auth endpoints, admin settings, and public settings
+  if (req.path.startsWith('/api/auth') || req.path === '/api/admin/settings' || req.path === '/api/settings') {
+    return next();
+  }
+
+  const settings = await storage.getSiteSettings();
+
+  if (settings.maintenanceMode) {
+    // Allow admin to bypass maintenance mode
+    if (req.session.userId) {
+      const user = await storage.getUser(req.session.userId);
+      if (user?.role === 'admin') {
+        return next();
+      }
+    }
+    return res.status(503).json({
+      error: "Site is under maintenance",
+      message: settings.maintenanceMessage || "We're currently performing maintenance. Please check back soon."
+    });
+  }
+
+  next();
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Apply maintenance mode check globally
+  app.use(checkMaintenanceMode);
+
   // Middleware to check if user is admin
   const requireAdmin = async (req: any, res: any, next: any) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Authentication required" });
     }
-    
+
     const user = await storage.getUser(req.session.userId);
     if (!user || user.role !== 'admin') {
       return res.status(403).json({ error: "Admin access required" });
     }
-    
+
     next();
   };
 
@@ -24,12 +53,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Authentication required" });
     }
-    
+
     const user = await storage.getUser(req.session.userId);
     if (!user || !['admin', 'editor'].includes(user.role)) {
       return res.status(403).json({ error: "Editor access required" });
     }
-    
+
     next();
   };
 
@@ -38,20 +67,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Authentication required" });
     }
-    
+
     const user = await storage.getUser(req.session.userId);
     if (!user || !['admin', 'editor', 'author'].includes(user.role)) {
       return res.status(403).json({ error: "Author access required" });
     }
-    
+
     if (user.isBanned) {
       return res.status(403).json({ error: "Your account has been banned" });
     }
-    
+
     if (!user.canPost) {
       return res.status(403).json({ error: "Posting disabled for your account" });
     }
-    
+
     next();
   };
 
@@ -60,61 +89,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId) {
       return next(); // Not logged in is OK for public routes
     }
-    
+
     const user = await storage.getUser(req.session.userId);
     if (user?.isBanned) {
       return res.status(403).json({ error: "Your account has been banned" });
     }
-    
+
     next();
   };
 
-  // Middleware to check maintenance mode
-  const checkMaintenanceMode = async (req: any, res: any, next: any) => {
-    // Skip maintenance check for auth endpoints, admin settings, and public settings
-    if (req.path.startsWith('/api/auth') || req.path === '/api/admin/settings' || req.path === '/api/settings') {
-      return next();
-    }
-    
-    const settings = await storage.getSiteSettings();
-    
-    if (settings.maintenanceMode) {
-      // Allow admin to bypass maintenance mode
-      if (req.session.userId) {
-        const user = await storage.getUser(req.session.userId);
-        if (user?.role === 'admin') {
-          return next();
-        }
-      }
-      return res.status(503).json({ 
-        error: "Site is under maintenance", 
-        message: settings.maintenanceMessage || "We're currently performing maintenance. Please check back soon."
-      });
-    }
-    
-    next();
-  };
-
-  // Apply maintenance mode check globally
-  app.use(checkMaintenanceMode);
 
   // Authentication Routes
   app.post("/api/auth/register", async (req, res) => {
     try {
       const validatedData = insertUserSchema.parse(req.body);
-      
+
       // Check if user already exists
       const existingUser = await storage.getUserByUsername(validatedData.username);
       if (existingUser) {
         return res.status(400).json({ error: "Username already exists" });
       }
-      
+
       const existingEmail = await storage.getUserByEmail(validatedData.email);
 
       if (existingEmail) {
         return res.status(400).json({ error: "Email already exists" });
       }
-      
+
       const user = await storage.createUser(validatedData);
       req.session.userId = user.id;
       res.status(201).json(user);
@@ -127,11 +128,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { username, password } = loginSchema.parse(req.body);
       const user = await storage.verifyPassword(username, password);
-      
+
       if (!user) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
-      
+
       req.session.userId = user.id;
       const { password: _, ...safeUser } = user;
       res.json(safeUser);
@@ -153,12 +154,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
     }
-    
+
     const user = await storage.getUser(req.session.userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-    
+
     const { password, ...safeUser } = user;
     res.json(safeUser);
   });
@@ -193,12 +194,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/blog/posts", requireAuthor, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
-      
+
       const validatedData = insertBlogPostSchema.parse({
         ...req.body,
         authorId: req.session.userId
       });
-      
+
       // Authors and non-admins/editors need to set status to pending_review
       if (user!.role === 'author') {
         validatedData.status = 'pending_review';
@@ -207,7 +208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Admins and editors can publish directly
         validatedData.status = validatedData.published ? 'published' : 'draft';
       }
-      
+
       const post = await storage.createPost(validatedData);
       res.status(201).json(post);
     } catch (error) {
@@ -220,23 +221,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ error: "Authentication required" });
       }
-      
+
       const user = await storage.getUser(req.session.userId);
       if (!user) {
         return res.status(401).json({ error: "User not found" });
       }
-      
+
       const post = await storage.getPost(req.params.id);
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
-      
+
       // Admin and editors can edit any post
       // Authors can only edit their own posts
       if (user.role !== 'admin' && user.role !== 'editor' && post.authorId !== req.session.userId) {
         return res.status(403).json({ error: "Not authorized" });
       }
-      
+
       const updated = await storage.updatePost(req.params.id, req.body);
       res.json(updated);
     } catch (error) {
@@ -249,22 +250,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ error: "Authentication required" });
       }
-      
+
       const user = await storage.getUser(req.session.userId);
       if (!user) {
         return res.status(401).json({ error: "User not found" });
       }
-      
+
       const post = await storage.getPost(req.params.id);
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
-      
+
       // Admin can delete any post, others can only delete their own
       if (user.role !== 'admin' && post.authorId !== req.session.userId) {
         return res.status(403).json({ error: "Not authorized" });
       }
-      
+
       await storage.deletePost(req.params.id);
       res.status(204).send();
     } catch (error) {
@@ -287,16 +288,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ error: "Authentication required" });
       }
-      
+
       const user = await storage.getUser(req.session.userId);
       if (user?.isBanned) {
         return res.status(403).json({ error: "Your account has been banned" });
       }
-      
+
       if (user?.isMuted) {
         return res.status(403).json({ error: "Your account has been muted" });
       }
-      
+
       const validatedData = insertCommentSchema.parse({
         ...req.body,
         postId: req.params.id,
@@ -315,7 +316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ error: "Authentication required" });
       }
-      
+
       const result = await storage.toggleStar(req.params.id, req.session.userId);
       res.json(result);
     } catch (error) {
@@ -326,7 +327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/blog/posts/:id/star", async (req, res) => {
     try {
       const count = await storage.getStarCount(req.params.id);
-      const starred = req.session.userId 
+      const starred = req.session.userId
         ? await storage.hasUserStarred(req.params.id, req.session.userId)
         : false;
       res.json({ count, starred });
@@ -654,4 +655,3 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   return httpServer;
 }
-
