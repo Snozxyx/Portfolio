@@ -28,6 +28,15 @@ export const siteSettings = pgTable("site_settings", {
   favicon: text("favicon"),
   ogImage: text("og_image"),
   footerMessage: text("footer_message"),
+  // Home page content
+  homeHeroTitle: text("home_hero_title"),
+  homeHeroSubtitle: text("home_hero_subtitle"),
+  homeAboutText: text("home_about_text"),
+  // Contact info
+  contactEmail: text("contact_email"),
+  contactGithub: text("contact_github"),
+  contactLinkedin: text("contact_linkedin"),
+  contactTwitter: text("contact_twitter"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

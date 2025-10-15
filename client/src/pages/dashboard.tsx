@@ -378,114 +378,102 @@ export default function Dashboard() {
                           />
                         </div>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-card border border-card-border rounded-xl p-4 md:p-6">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <Settings className="w-5 h-5" />
-                      Site Settings
-                    </h3>
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <label className="text-sm font-medium">Maintenance Mode</label>
-                          <p className="text-sm text-muted-foreground">
-                            Enable maintenance mode to restrict access to the site
-                          </p>
-                        </div>
-                        <Switch
-                          checked={siteSettings?.maintenanceMode || false}
-                          onCheckedChange={(checked) => 
-                            updateSettingsMutation.mutate({
-                              maintenanceMode: checked,
-                              maintenanceMessage: siteSettings?.maintenanceMessage || "We're currently performing maintenance. Please check back soon."
-                            })
-                          }
-                          data-testid="switch-maintenance-mode"
-                        />
-                      </div>
-
-                      {siteSettings?.maintenanceMode && (
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Maintenance Message</label>
-                          <Textarea
-                            key={siteSettings?.maintenanceMessage}
-                            defaultValue={siteSettings?.maintenanceMessage || "We're currently performing maintenance. Please check back soon."}
-                            onBlur={(e) => 
-                              updateSettingsMutation.mutate({
-                                maintenanceMode: true,
-                                maintenanceMessage: e.target.value || "We're currently performing maintenance. Please check back soon."
-                              })
-                            }
-                            placeholder="Enter maintenance message..."
-                            className="min-h-[100px]"
-                            data-testid="textarea-maintenance-message"
-                          />
-                          <p className="text-xs text-muted-foreground mt-2">
-                            This message will be shown to non-admin users when they try to access the site.
-                          </p>
-                        </div>
-                      )}
 
                       <Separator />
 
                       <div className="space-y-4">
-                        <h3 className="text-lg font-semibold">SEO Settings</h3>
+                        <h3 className="text-lg font-semibold">Page Content</h3>
 
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Site Title</label>
+                          <label className="text-sm font-medium">Home Hero Title</label>
                           <Input
-                            key={siteSettings?.siteTitle}
-                            defaultValue={siteSettings?.siteTitle || ''}
+                            key={siteSettings?.homeHeroTitle}
+                            defaultValue={siteSettings?.homeHeroTitle || ''}
                             onBlur={(e) => 
-                              updateSettingsMutation.mutate({ siteTitle: e.target.value })
+                              updateSettingsMutation.mutate({ homeHeroTitle: e.target.value })
                             }
-                            placeholder="My Portfolio"
-                            data-testid="input-site-title"
+                            placeholder="Hi, I'm Snozxyx"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Site Description</label>
+                          <label className="text-sm font-medium">Home Hero Subtitle</label>
                           <Textarea
-                            key={siteSettings?.siteDescription}
-                            defaultValue={siteSettings?.siteDescription || ''}
+                            key={siteSettings?.homeHeroSubtitle}
+                            defaultValue={siteSettings?.homeHeroSubtitle || ''}
                             onBlur={(e) => 
-                              updateSettingsMutation.mutate({ siteDescription: e.target.value })
+                              updateSettingsMutation.mutate({ homeHeroSubtitle: e.target.value })
                             }
                             placeholder="Full-stack developer, gamer, and tech enthusiast"
-                            className="min-h-[80px]"
-                            data-testid="textarea-site-description"
+                            className="min-h-[60px]"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Open Graph Image URL</label>
-                          <Input
-                            key={siteSettings?.ogImage}
-                            defaultValue={siteSettings?.ogImage || ''}
+                          <label className="text-sm font-medium">About Text</label>
+                          <Textarea
+                            key={siteSettings?.homeAboutText}
+                            defaultValue={siteSettings?.homeAboutText || ''}
                             onBlur={(e) => 
-                              updateSettingsMutation.mutate({ ogImage: e.target.value })
+                              updateSettingsMutation.mutate({ homeAboutText: e.target.value })
                             }
-                            placeholder="https://example.com/og-image.jpg"
-                            data-testid="input-og-image"
+                            placeholder="Tell visitors about yourself..."
+                            className="min-h-[120px]"
                           />
-                          <p className="text-xs text-muted-foreground">
-                            Image shown when sharing on social media (recommended: 1200x630px)
-                          </p>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Contact Information</h3>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Email</label>
+                          <Input
+                            key={siteSettings?.contactEmail}
+                            defaultValue={siteSettings?.contactEmail || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ contactEmail: e.target.value })
+                            }
+                            placeholder="your@email.com"
+                            type="email"
+                          />
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Footer Message</label>
+                          <label className="text-sm font-medium">GitHub URL</label>
                           <Input
-                            key={siteSettings?.footerMessage}
-                            defaultValue={siteSettings?.footerMessage || ''}
+                            key={siteSettings?.contactGithub}
+                            defaultValue={siteSettings?.contactGithub || ''}
                             onBlur={(e) => 
-                              updateSettingsMutation.mutate({ footerMessage: e.target.value })
+                              updateSettingsMutation.mutate({ contactGithub: e.target.value })
                             }
-                            placeholder="© 2024 Snozxyx. All rights reserved."
-                            data-testid="input-footer-message"
+                            placeholder="https://github.com/username"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">LinkedIn URL</label>
+                          <Input
+                            key={siteSettings?.contactLinkedin}
+                            defaultValue={siteSettings?.contactLinkedin || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ contactLinkedin: e.target.value })
+                            }
+                            placeholder="https://linkedin.com/in/username"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Twitter/X URL</label>
+                          <Input
+                            key={siteSettings?.contactTwitter}
+                            defaultValue={siteSettings?.contactTwitter || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ contactTwitter: e.target.value })
+                            }
+                            placeholder="https://twitter.com/username"
                           />
                         </div>
                       </div>
