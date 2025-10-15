@@ -106,7 +106,7 @@ export const CodeBlock = memo<CodeBlockProps>(({
       setCopied(true);
       toast({ 
         title: 'Code copied to clipboard!',
-        description: `${code.split('').length} lines copied`
+        description: `${code.split('\n').length} lines copied`
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
