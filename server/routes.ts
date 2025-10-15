@@ -706,6 +706,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GitHub API routes
+  app.get("/api/github/repos/:username", async (req, res) => {
+    try {
+      const { username } = req.params;
+      const response = await fetch(`https://api.github.com/users/${username}/repos?sort=updated&per_page=100`, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Portfolio-App'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch GitHub repos');
+      }
+
+      const repos = await response.json();
+      
+      // Filter and format the repos
+      const formattedRepos = repos.map((repo: any) => ({
+        id: repo.id,
+        name: repo.name,
+        fullName: repo.full_name,
+        description: repo.description,
+        url: repo.html_url,
+        homepage: repo.homepage,
+        stars: repo.stargazers_count,
+        forks: repo.forks_count,
+        language: repo.language,
+        topics: repo.topics || [],
+        createdAt: repo.created_at,
+        updatedAt: repo.updated_at,
+        isPrivate: repo.private,
+        isFork: repo.fork,
+      }));
+
+      res.json(formattedRepos);
+    } catch (error) {
+      console.error('GitHub API error:', error);
+      res.status(500).json({ error: 'Failed to fetch GitHub repositories' });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

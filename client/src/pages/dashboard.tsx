@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/lib/auth-context';
-import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings, Megaphone, Plus, Trash2, Briefcase, Zap } from 'lucide-react';
+import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings, Megaphone, Plus, Trash2, Briefcase, Zap, Github, ExternalLink, GitFork, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Input } from '@/components/ui/input';
@@ -60,6 +60,13 @@ export default function Dashboard() {
   const { data: skills = [] } = useQuery<Skill[]>({
     queryKey: ['/api/skills'],
     enabled: user?.role === 'admin',
+  });
+
+  // GitHub repos query
+  const { data: githubRepos = [], refetch: refetchGithubRepos } = useQuery({
+    queryKey: ['/api/github/repos/snozxyx'],
+    enabled: user?.role === 'admin',
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const createAnnouncementMutation = useMutation({
@@ -669,6 +676,82 @@ export default function Dashboard() {
                         <p className="text-sm text-muted-foreground text-center py-4">No skills yet</p>
                       )}
                     </div>
+                  </div>
+
+                  {/* GitHub Repositories Section */}
+                  <div className="bg-card border border-card-border rounded-xl p-4 md:p-6 mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Github className="w-5 h-5" />
+                        GitHub Repositories
+                      </h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => refetchGithubRepos()}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-1" />
+                        Refresh
+                      </Button>
+                    </div>
+
+                    {githubRepos.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {githubRepos.slice(0, 10).map((repo: any) => (
+                          <div key={repo.id} className="p-3 bg-background rounded-lg border border-border hover:border-primary/50 transition-colors">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <a
+                                  href={repo.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-sm hover:text-primary transition-colors flex items-center gap-1"
+                                >
+                                  {repo.name}
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                                {repo.description && (
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                    {repo.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                              {repo.language && (
+                                <span className="flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full bg-primary"></span>
+                                  {repo.language}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Star className="w-3 h-3" />
+                                {repo.stars}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <GitFork className="w-3 h-3" />
+                                {repo.forks}
+                              </span>
+                            </div>
+                            
+                            {repo.topics && repo.topics.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {repo.topics.slice(0, 3).map((topic: string) => (
+                                  <Badge key={topic} variant="outline" className="text-xs">
+                                    {topic}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No repositories found or failed to load
+                      </p>
+                    )}
                   </div>
 
                   <div className="bg-card border border-card-border rounded-xl p-4 md:p-6 mt-6">
