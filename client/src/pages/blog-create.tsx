@@ -64,10 +64,13 @@ export default function BlogCreate() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('POST', '/api/blog/posts', {
-      ...data,
-      tags: data.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
-    }),
+    mutationFn: async (data: any) => {
+      const res = await apiRequest('POST', '/api/blog/posts', {
+        ...data,
+        tags: data.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
+      });
+      return res.json();
+    },
     onSuccess: (post: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/blog/posts'] });
       toast({ title: 'Post created successfully!' });
@@ -76,11 +79,14 @@ export default function BlogCreate() {
   });
 
   const saveDraftMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('POST', '/api/blog/posts', {
-      ...data,
-      tags: data.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
-      published: false,
-    }),
+    mutationFn: async (data: any) => {
+      const res = await apiRequest('POST', '/api/blog/posts', {
+        ...data,
+        tags: data.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
+        published: false,
+      });
+      return res.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/blog/posts'] });
       toast({ title: 'Draft saved successfully!' });
