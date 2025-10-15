@@ -44,6 +44,18 @@ export const announcements = pgTable("announcements", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const activityLogs = pgTable("activity_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  action: text("action").notNull(), // create, update, delete, login, logout
+  entityType: text("entity_type").notNull(), // post, comment, user, project, skill
+  entityId: varchar("entity_id"),
+  details: text("details"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const projects = pgTable("projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -175,3 +187,5 @@ export type SiteSettings = typeof siteSettings.$inferSelect;
 
 export type Announcement = typeof announcements.$inferSelect;
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
+
+export type ActivityLog = typeof activityLogs.$inferSelect;

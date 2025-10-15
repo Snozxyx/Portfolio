@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertProjectSchema, insertSkillSchema, insertUserSchema, loginSchema, insertBlogPostSchema, insertCommentSchema } from "@shared/schema";
 import "./types";
+import { registerRssRoutes } from "./routes/rss";
+import { registerSitemapRoutes } from "./routes/sitemap";
 
 // Maintenance mode middleware
 async function checkMaintenanceMode(req: any, res: any, next: any) {
@@ -650,6 +652,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to update post status" });
     }
   });
+
+  // Register RSS feed routes
+  registerRssRoutes(app);
+  
+  // Register sitemap routes
+  registerSitemapRoutes(app);
 
   const httpServer = createServer(app);
 

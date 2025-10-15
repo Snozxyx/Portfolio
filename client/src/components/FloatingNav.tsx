@@ -1,6 +1,7 @@
 import { motion, useScroll, useMotionValueEvent } from 'framer-motion';
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
+import { ThemeToggle } from './ThemeToggle';
 
 export const FloatingNav = () => {
   const [isVisible, setIsVisible] = useState(true);
@@ -64,6 +65,9 @@ export const FloatingNav = () => {
               </a>
             </motion.li>
           ))}
+          <motion.li whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+            <ThemeToggle />
+          </motion.li>
         </ul>
       </div>
     </motion.nav>
