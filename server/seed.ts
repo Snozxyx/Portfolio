@@ -29,6 +29,36 @@ async function seed() {
   const settings = await storage.getSiteSettings();
   console.log("✅ Site settings initialized:", settings.siteTitle);
 
+  // Seed skills if none exist
+  const existingSkills = await storage.getAllSkills();
+  if (existingSkills.length === 0) {
+    const sampleSkills = [
+      { name: "JavaScript/TypeScript", category: "Languages", proficiency: "expert", icon: null },
+      { name: "Python", category: "Languages", proficiency: "advanced", icon: null },
+      { name: "Java", category: "Languages", proficiency: "intermediate", icon: null },
+      { name: "C++", category: "Languages", proficiency: "intermediate", icon: null },
+      { name: "React", category: "Frameworks", proficiency: "expert", icon: null },
+      { name: "Next.js", category: "Frameworks", proficiency: "expert", icon: null },
+      { name: "Node.js", category: "Frameworks", proficiency: "expert", icon: null },
+      { name: "Express", category: "Frameworks", proficiency: "advanced", icon: null },
+      { name: "Git", category: "Tools", proficiency: "expert", icon: null },
+      { name: "Docker", category: "Tools", proficiency: "advanced", icon: null },
+      { name: "AWS", category: "Tools", proficiency: "intermediate", icon: null },
+      { name: "MongoDB", category: "Tools", proficiency: "advanced", icon: null },
+      { name: "Discord.js", category: "Gaming Tech", proficiency: "expert", icon: null },
+      { name: "Twitch API", category: "Gaming Tech", proficiency: "advanced", icon: null },
+      { name: "OBS Studio", category: "Gaming Tech", proficiency: "advanced", icon: null },
+      { name: "WebRTC", category: "Gaming Tech", proficiency: "intermediate", icon: null }
+    ];
+
+    for (const skill of sampleSkills) {
+      await storage.createSkill(skill);
+    }
+    console.log("✅ Skills seeded:", sampleSkills.length, "skills added");
+  } else {
+    console.log("ℹ️  Skills already exist");
+  }
+
   console.log("Database seeding complete!");
   process.exit(0);
 }
