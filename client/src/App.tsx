@@ -21,14 +21,19 @@ import type { SiteSettings } from "@shared/schema";
 
 function Router() {
   const { user } = useAuth();
-  const { data: settings } = useQuery<SiteSettings>({
+  // Fetch site settings
+  const { data: settings } = useQuery({
     queryKey: ['/api/settings'],
-    retry: false,
+    queryFn: async () => {
+      const res = await fetch('/api/settings', { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch settings');
+      return res.json();
+    },
   });
 
-  // Show maintenance page if maintenance mode is on and user is not admin
+  // Show maintenance page if enabled (except for admins)
   if (settings?.maintenanceMode && user?.role !== 'admin') {
-    return <MaintenancePage message={settings.maintenanceMessage || undefined} />;
+    return <MaintenancePage message={settings.maintenanceMessage} />;
   }
 
   return (

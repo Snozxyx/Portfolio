@@ -5,6 +5,11 @@ import { insertProjectSchema, insertSkillSchema, insertUserSchema, loginSchema, 
 import "./types";
 import { registerRssRoutes } from "./routes/rss";
 import { registerSitemapRoutes } from "./routes/sitemap";
+import multer from "multer";
+import { s3Storage } from "./s3-storage";
+import { randomUUID } from "crypto";
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Maintenance mode middleware
 async function checkMaintenanceMode(req: any, res: any, next: any) {
@@ -100,6 +105,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   };
 
+  // Middleware to require authentication for uploads
+  const requireAuth = async (req: any, res: any, next: any) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    next();
+  };
 
   // Authentication Routes
   app.post("/api/auth/register", async (req, res) => {
@@ -653,11 +665,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Register RSS feed routes
-  registerRssRoutes(app);
-  
-  // Register sitemap routes
-  registerSitemapRoutes(app);
+  // RSS Feed
+  app.use('/rss', rssRouter);
+
+  // Sitemap
+  app.use('/sitemap.xml', sitemapRouter);
+
+  // Image Upload
+  app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const fileExtension = req.file.originalname.split('.').pop();
+      const fileName = `${randomUUID()}.${fileExtension}`;
+      const key = `images/${fileName}`;
+
+      const url = await s3Storage.uploadFile(
+        key,
+        req.file.buffer,
+        req.file.mimetype
+      );
+
+      res.json({ url });
+    } catch (error) {
+      console.error('Upload error:', error);
+      res.status(500).json({ error: 'Failed to upload image' });
+    }
+  });
+
+  app.delete('/api/upload/:key(*)', requireAuth, async (req, res) => {
+    try {
+      const key = req.params.key;
+      await s3Storage.deleteFile(key);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Delete error:', error);
+      res.status(500).json({ error: 'Failed to delete image' });
+    }
+  });
 
   const httpServer = createServer(app);
 

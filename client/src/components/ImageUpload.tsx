@@ -42,25 +42,32 @@ export const ImageUpload = ({ onImageUrl, currentImage }: ImageUploadProps) => {
     setUploading(true);
 
     try {
-      // For demo purposes, convert to base64 data URL
-      // In production, you'd upload to a storage service
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string;
-        setPreview(dataUrl);
-        onImageUrl(dataUrl);
-        setUploading(false);
-        toast({
-          title: 'Image uploaded',
-          description: 'Image has been set successfully',
-        });
-      };
-      reader.readAsDataURL(file);
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await response.json();
+      setPreview(data.url);
+      onImageUrl(data.url);
+      setUploading(false);
+      toast({
+        title: 'Image uploaded',
+        description: 'Image has been uploaded to Supabase S3',
+      });
     } catch (error) {
       setUploading(false);
       toast({
         title: 'Upload failed',
-        description: 'Failed to process image',
+        description: 'Failed to upload image',
         variant: 'destructive',
       });
     }
