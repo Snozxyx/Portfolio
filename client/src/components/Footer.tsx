@@ -1,20 +1,18 @@
 import { Github, Linkedin, Mail } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
 export const Footer = () => {
-  const currentYear = new Date().getFullYear();
+  const { data: siteSettings } = useQuery({
+    queryKey: ['/api/settings'],
+  });
 
   return (
-    <footer className="border-t border-border bg-card/30 py-12">
-      <div className="container mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          {/* Brand */}
-          <div>
-            <h3 className="text-xl font-serif font-bold mb-4 bg-gradient-to-r from-primary to-[#ff6b35] bg-clip-text text-transparent">
-              Snozxyx
-            </h3>
-            <p className="text-sm text-muted-foreground font-sans">
-              Software Developer & Gaming Enthusiast
-            </p>
+    <footer className="relative bg-card/50 backdrop-blur-sm border-t border-border py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="text-center md:text-left">
+            <h3 className="text-2xl font-serif font-bold mb-2">Snozxyx</h3>
+            <p className="text-muted-foreground font-sans">Building the future, one line of code at a time.</p>
           </div>
 
           {/* Quick Links */}
@@ -69,9 +67,9 @@ export const Footer = () => {
         </div>
 
         <div className="border-t border-border pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-muted-foreground font-sans">
-            © {currentYear} Snozxyx. All rights reserved.
-          </p>
+          <div className="text-center text-muted-foreground font-sans text-sm">
+            <p>{siteSettings?.footerMessage || '© 2024 Snozxyx. All rights reserved.'}</p>
+          </div>
           <p className="text-sm text-muted-foreground font-mono">
             Built with React, Framer Motion & TypeScript
           </p>

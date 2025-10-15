@@ -47,7 +47,7 @@ export const FloatingNav = () => {
       data-testid="nav-floating"
     >
       <div className="bg-card/80 backdrop-blur-md rounded-full px-8 py-4 border border-border shadow-lg">
-        <ul className="flex space-x-8 text-foreground font-sans">
+        <ul className="flex items-center justify-center space-x-8 text-foreground font-sans">
           {navItems.map((item) => (
             <motion.li
               key={item.name}

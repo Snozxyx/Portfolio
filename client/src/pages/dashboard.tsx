@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/lib/auth-context';
 import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings, Megaphone, Plus, Trash2, Briefcase, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -26,7 +27,7 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   const { data: posts = [] } = useQuery<BlogPost[]>({
     queryKey: ['/api/blog/posts'],
     queryFn: async () => {
@@ -170,7 +171,7 @@ export default function Dashboard() {
   });
 
   const updateSettingsMutation = useMutation({
-    mutationFn: (data: { maintenanceMode: boolean; maintenanceMessage?: string }) => 
+    mutationFn: (data: { maintenanceMode: boolean; maintenanceMessage?: string; siteTitle?: string; siteDescription?: string; ogImage?: string; footerMessage?: string }) => 
       apiRequest('POST', '/api/admin/settings', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
@@ -194,7 +195,7 @@ export default function Dashboard() {
       <FloatingNav />
       <MobileNav />
       <BlogMobileNav />
-      
+
       <div className="container mx-auto px-4 md:px-6 py-20 md:py-32 pb-24 md:pb-32">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -267,15 +268,12 @@ export default function Dashboard() {
                       <Settings className="w-5 h-5" />
                       Site Settings
                     </h3>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 bg-background rounded-lg border border-border">
-                        <div className="flex-1">
-                          <p className="font-medium">Maintenance Mode</p>
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <label className="text-sm font-medium">Maintenance Mode</label>
                           <p className="text-sm text-muted-foreground">
-                            {siteSettings?.maintenanceMode 
-                              ? '🔒 Site is locked - Only admins can access'
-                              : '🌐 Site is accessible to all users'
-                            }
+                            Enable maintenance mode to restrict access to the site
                           </p>
                         </div>
                         <Switch
@@ -286,11 +284,13 @@ export default function Dashboard() {
                               maintenanceMessage: siteSettings?.maintenanceMessage || "We're currently performing maintenance. Please check back soon."
                             })
                           }
+                          data-testid="switch-maintenance-mode"
                         />
                       </div>
+
                       {siteSettings?.maintenanceMode && (
-                        <div className="p-4 bg-background rounded-lg border border-border">
-                          <label className="text-sm font-medium mb-2 block">Custom Maintenance Message</label>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Maintenance Message</label>
                           <Textarea
                             key={siteSettings?.maintenanceMessage}
                             defaultValue={siteSettings?.maintenanceMessage || "We're currently performing maintenance. Please check back soon."}
@@ -302,92 +302,186 @@ export default function Dashboard() {
                             }
                             placeholder="Enter maintenance message..."
                             className="min-h-[100px]"
+                            data-testid="textarea-maintenance-message"
                           />
                           <p className="text-xs text-muted-foreground mt-2">
                             This message will be shown to non-admin users when they try to access the site.
                           </p>
                         </div>
                       )}
+
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">SEO Settings</h3>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Site Title</label>
+                          <Input
+                            key={siteSettings?.siteTitle}
+                            defaultValue={siteSettings?.siteTitle || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ siteTitle: e.target.value })
+                            }
+                            placeholder="My Portfolio"
+                            data-testid="input-site-title"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Site Description</label>
+                          <Textarea
+                            key={siteSettings?.siteDescription}
+                            defaultValue={siteSettings?.siteDescription || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ siteDescription: e.target.value })
+                            }
+                            placeholder="Full-stack developer, gamer, and tech enthusiast"
+                            className="min-h-[80px]"
+                            data-testid="textarea-site-description"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Open Graph Image URL</label>
+                          <Input
+                            key={siteSettings?.ogImage}
+                            defaultValue={siteSettings?.ogImage || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ ogImage: e.target.value })
+                            }
+                            placeholder="https://example.com/og-image.jpg"
+                            data-testid="input-og-image"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Image shown when sharing on social media (recommended: 1200x630px)
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Footer Message</label>
+                          <Input
+                            key={siteSettings?.footerMessage}
+                            defaultValue={siteSettings?.footerMessage || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ footerMessage: e.target.value })
+                            }
+                            placeholder="© 2024 Snozxyx. All rights reserved."
+                            data-testid="input-footer-message"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   <div className="bg-card border border-card-border rounded-xl p-4 md:p-6">
-                    <h3 className="text-lg font-semibold mb-4">User Management</h3>
-                    <div className="space-y-3">
-                      {allUsers.map((u) => (
-                        <div key={u.id} className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-background rounded-lg border border-border hover:border-primary/20 transition-colors">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="font-medium">{u.displayName || u.username}</p>
-                              {u.id === user.id && <Badge variant="outline" className="text-xs">You</Badge>}
-                            </div>
-                            <p className="text-sm text-muted-foreground">@{u.username} • {u.email}</p>
-                            <div className="flex gap-2 mt-2 flex-wrap">
-                              <Badge 
-                                variant={
-                                  u.role === 'admin' ? 'default' : 
-                                  u.role === 'editor' ? 'secondary' : 
-                                  u.role === 'author' ? 'outline' :
-                                  'outline'
-                                }
-                              >
-                                {u.role === 'admin' ? '👑 Admin' : 
-                                 u.role === 'editor' ? '✏️ Editor' : 
-                                 u.role === 'author' ? '📝 Author' :
-                                 '👤 Reader'}
-                              </Badge>
-                              {u.isBanned && <Badge variant="destructive">🚫 Banned</Badge>}
-                              {u.isMuted && !u.isBanned && <Badge variant="secondary">🔇 Muted</Badge>}
-                              {!u.canPost && !u.isBanned && <Badge variant="secondary">📝 Cannot Post</Badge>}
-                              {u.canPost && !u.isBanned && <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20">✓ Can Post</Badge>}
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Select
-                              value={u.role}
-                              onValueChange={(role) => updateRoleMutation.mutate({ userId: u.id, role })}
-                              disabled={u.id === user.id}
-                            >
-                              <SelectTrigger className="w-36">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">👑 Admin</SelectItem>
-                                <SelectItem value="editor">✏️ Editor</SelectItem>
-                                <SelectItem value="author">📝 Author</SelectItem>
-                                <SelectItem value="reader">👤 Reader</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            {u.id !== user.id && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => togglePostingMutation.mutate({ userId: u.id, canPost: !u.canPost })}
-                                  disabled={u.isBanned}
-                                >
-                                  {u.canPost ? 'Disable Posts' : 'Enable Posts'}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => muteMutation.mutate({ userId: u.id, isMuted: !u.isMuted })}
-                                  disabled={u.isBanned}
-                                >
-                                  {u.isMuted ? 'Unmute' : 'Mute'}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant={u.isBanned ? 'default' : 'destructive'}
-                                  onClick={() => banMutation.mutate({ userId: u.id, isBanned: !u.isBanned })}
-                                >
-                                  {u.isBanned ? 'Unban' : 'Ban'}
-                                </Button>
-                              </>
-                            )}
-                          </div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <Settings className="w-5 h-5" />
+                      Site Settings
+                    </h3>
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <label className="text-sm font-medium">Maintenance Mode</label>
+                          <p className="text-sm text-muted-foreground">
+                            Enable maintenance mode to restrict access to the site
+                          </p>
                         </div>
-                      ))}
+                        <Switch
+                          checked={siteSettings?.maintenanceMode || false}
+                          onCheckedChange={(checked) => 
+                            updateSettingsMutation.mutate({
+                              maintenanceMode: checked,
+                              maintenanceMessage: siteSettings?.maintenanceMessage || "We're currently performing maintenance. Please check back soon."
+                            })
+                          }
+                          data-testid="switch-maintenance-mode"
+                        />
+                      </div>
+
+                      {siteSettings?.maintenanceMode && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Maintenance Message</label>
+                          <Textarea
+                            key={siteSettings?.maintenanceMessage}
+                            defaultValue={siteSettings?.maintenanceMessage || "We're currently performing maintenance. Please check back soon."}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({
+                                maintenanceMode: true,
+                                maintenanceMessage: e.target.value || "We're currently performing maintenance. Please check back soon."
+                              })
+                            }
+                            placeholder="Enter maintenance message..."
+                            className="min-h-[100px]"
+                            data-testid="textarea-maintenance-message"
+                          />
+                          <p className="text-xs text-muted-foreground mt-2">
+                            This message will be shown to non-admin users when they try to access the site.
+                          </p>
+                        </div>
+                      )}
+
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">SEO Settings</h3>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Site Title</label>
+                          <Input
+                            key={siteSettings?.siteTitle}
+                            defaultValue={siteSettings?.siteTitle || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ siteTitle: e.target.value })
+                            }
+                            placeholder="My Portfolio"
+                            data-testid="input-site-title"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Site Description</label>
+                          <Textarea
+                            key={siteSettings?.siteDescription}
+                            defaultValue={siteSettings?.siteDescription || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ siteDescription: e.target.value })
+                            }
+                            placeholder="Full-stack developer, gamer, and tech enthusiast"
+                            className="min-h-[80px]"
+                            data-testid="textarea-site-description"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Open Graph Image URL</label>
+                          <Input
+                            key={siteSettings?.ogImage}
+                            defaultValue={siteSettings?.ogImage || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ ogImage: e.target.value })
+                            }
+                            placeholder="https://example.com/og-image.jpg"
+                            data-testid="input-og-image"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Image shown when sharing on social media (recommended: 1200x630px)
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Footer Message</label>
+                          <Input
+                            key={siteSettings?.footerMessage}
+                            defaultValue={siteSettings?.footerMessage || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ footerMessage: e.target.value })
+                            }
+                            placeholder="© 2024 Snozxyx. All rights reserved."
+                            data-testid="input-footer-message"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -398,7 +492,7 @@ export default function Dashboard() {
                         Projects Management
                       </h3>
                     </div>
-                    
+
                     <div className="space-y-4">
                       <div className="p-4 bg-background rounded-lg border border-border">
                         <h4 className="font-medium mb-3">Add New Project</h4>
@@ -498,7 +592,7 @@ export default function Dashboard() {
                         Skills Management
                       </h3>
                     </div>
-                    
+
                     <div className="space-y-4">
                       <div className="p-4 bg-background rounded-lg border border-border">
                         <h4 className="font-medium mb-3">Add New Skill</h4>
@@ -584,7 +678,7 @@ export default function Dashboard() {
                         Announcements
                       </h3>
                     </div>
-                    
+
                     <div className="space-y-4">
                       <div className="p-4 bg-background rounded-lg border border-border">
                         <h4 className="font-medium mb-3">Create New Announcement</h4>
@@ -722,7 +816,7 @@ export default function Dashboard() {
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
