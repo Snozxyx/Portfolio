@@ -790,4 +790,450 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// PostgreSQL Storage Implementation using Drizzle ORM
+import { db } from "./db";
+import { eq, and, desc, sql as drizzleSql } from "drizzle-orm";
+import { 
+  users, 
+  projects, 
+  skills, 
+  blogPosts, 
+  blogComments, 
+  postStars, 
+  siteSettings,
+  announcements
+} from "@shared/schema";
+
+export class DbStorage implements IStorage {
+  // Users
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    return result[0];
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return result[0];
+  }
+
+  async getAllUsers(): Promise<SafeUser[]> {
+    const allUsers = await db.select().from(users);
+    return allUsers.map(({ password, ...user }) => user);
+  }
+
+  async createUser(insertUser: InsertUser): Promise<SafeUser> {
+    const hashedPassword = await bcrypt.hash(insertUser.password, 10);
+    const result = await db.insert(users).values({
+      username: insertUser.username,
+      email: insertUser.email,
+      password: hashedPassword,
+      displayName: insertUser.displayName,
+      role: insertUser.role || "reader",
+      bio: insertUser.bio,
+      avatar: insertUser.avatar,
+      isBanned: insertUser.isBanned ?? false,
+      canPost: insertUser.canPost ?? false,
+      isMuted: insertUser.isMuted ?? false,
+    }).returning();
+    
+    const { password, ...safeUser } = result[0];
+    return safeUser;
+  }
+
+  async verifyPassword(username: string, password: string): Promise<User | null> {
+    const user = await this.getUserByUsername(username);
+    if (!user) return null;
+
+    const isValid = await bcrypt.compare(password, user.password);
+    return isValid ? user : null;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id));
+    return true;
+  }
+
+  async updateUserRole(id: string, role: string): Promise<SafeUser | undefined> {
+    const result = await db.update(users)
+      .set({ role })
+      .where(eq(users.id, id))
+      .returning();
+    
+    if (result.length === 0) return undefined;
+    const { password, ...safeUser } = result[0];
+    return safeUser;
+  }
+
+  async toggleUserPosting(userId: string, canPost: boolean): Promise<SafeUser | undefined> {
+    const result = await db.update(users)
+      .set({ canPost })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    if (result.length === 0) return undefined;
+    const { password, ...safeUser } = result[0];
+    return safeUser;
+  }
+
+  async toggleUserBan(userId: string, isBanned: boolean): Promise<SafeUser | undefined> {
+    const result = await db.update(users)
+      .set({ isBanned })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    if (result.length === 0) return undefined;
+    const { password, ...safeUser } = result[0];
+    return safeUser;
+  }
+
+  async toggleUserMute(userId: string, isMuted: boolean): Promise<SafeUser | undefined> {
+    const result = await db.update(users)
+      .set({ isMuted })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    if (result.length === 0) return undefined;
+    const { password, ...safeUser } = result[0];
+    return safeUser;
+  }
+
+  // Projects
+  async getAllProjects(): Promise<Project[]> {
+    return await db.select().from(projects).orderBy(projects.order);
+  }
+
+  async getProject(id: string): Promise<Project | undefined> {
+    const result = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createProject(insertProject: InsertProject): Promise<Project> {
+    const result = await db.insert(projects).values(insertProject).returning();
+    return result[0];
+  }
+
+  async updateProject(id: string, updates: Partial<InsertProject>): Promise<Project | undefined> {
+    const result = await db.update(projects)
+      .set(updates)
+      .where(eq(projects.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async deleteProject(id: string): Promise<boolean> {
+    await db.delete(projects).where(eq(projects.id, id));
+    return true;
+  }
+
+  // Skills
+  async getAllSkills(): Promise<Skill[]> {
+    return await db.select().from(skills);
+  }
+
+  async getSkill(id: string): Promise<Skill | undefined> {
+    const result = await db.select().from(skills).where(eq(skills.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createSkill(insertSkill: InsertSkill): Promise<Skill> {
+    const result = await db.insert(skills).values(insertSkill).returning();
+    return result[0];
+  }
+
+  async updateSkill(id: string, updates: Partial<InsertSkill>): Promise<Skill | undefined> {
+    const result = await db.update(skills)
+      .set(updates)
+      .where(eq(skills.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async deleteSkill(id: string): Promise<boolean> {
+    await db.delete(skills).where(eq(skills.id, id));
+    return true;
+  }
+
+  // Blog Posts
+  private generateSlug(title: string): string {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  async getAllPosts(publishedOnly = true): Promise<BlogPost[]> {
+    if (publishedOnly) {
+      return await db.select()
+        .from(blogPosts)
+        .where(eq(blogPosts.published, true))
+        .orderBy(desc(blogPosts.createdAt));
+    }
+    
+    return await db.select()
+      .from(blogPosts)
+      .orderBy(desc(blogPosts.createdAt));
+  }
+
+  async getPost(id: string): Promise<BlogPost | undefined> {
+    const result = await db.select().from(blogPosts).where(eq(blogPosts.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getPostBySlug(slug: string): Promise<BlogPost | undefined> {
+    const result = await db.select().from(blogPosts).where(eq(blogPosts.slug, slug)).limit(1);
+    return result[0];
+  }
+
+  async getPostsByAuthor(authorId: string): Promise<BlogPost[]> {
+    return await db.select()
+      .from(blogPosts)
+      .where(eq(blogPosts.authorId, authorId))
+      .orderBy(desc(blogPosts.createdAt));
+  }
+
+  async createPost(insertPost: InsertBlogPost): Promise<BlogPost> {
+    let slug = this.generateSlug(insertPost.title);
+    
+    // Ensure slug uniqueness
+    let uniqueSlug = slug;
+    let counter = 1;
+    while (true) {
+      const existing = await db.select().from(blogPosts).where(eq(blogPosts.slug, uniqueSlug)).limit(1);
+      if (existing.length === 0) break;
+      uniqueSlug = `${slug}-${counter}`;
+      counter++;
+    }
+
+    // Calculate read time
+    const wordCount = insertPost.content.split(/\s+/).length;
+    const readTime = Math.ceil(wordCount / 200);
+
+    const result = await db.insert(blogPosts).values({
+      slug: uniqueSlug,
+      title: insertPost.title,
+      content: insertPost.content,
+      excerpt: insertPost.excerpt,
+      authorId: insertPost.authorId,
+      tags: insertPost.tags || [],
+      category: insertPost.category,
+      published: insertPost.published ?? false,
+      status: insertPost.status || "draft",
+      readTime,
+      coverImage: insertPost.coverImage,
+      publishedAt: insertPost.published ? new Date() : null,
+    }).returning();
+    
+    return result[0];
+  }
+
+  async updatePost(id: string, updates: Partial<InsertBlogPost>): Promise<BlogPost | undefined> {
+    const result = await db.update(blogPosts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(blogPosts.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async deletePost(id: string): Promise<boolean> {
+    await db.delete(blogPosts).where(eq(blogPosts.id, id));
+    return true;
+  }
+
+  async updatePostPublishStatus(id: string, published: boolean): Promise<BlogPost | undefined> {
+    const result = await db.update(blogPosts)
+      .set({ 
+        published, 
+        publishedAt: published ? new Date() : null 
+      })
+      .where(eq(blogPosts.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async updatePostStatus(id: string, status: string): Promise<BlogPost | undefined> {
+    const result = await db.update(blogPosts)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(blogPosts.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async pinPost(id: string): Promise<BlogPost | undefined> {
+    // Note: Pin functionality would require a 'pinned' column in schema
+    return await this.getPost(id);
+  }
+
+  async unpinPost(id: string): Promise<BlogPost | undefined> {
+    // Note: Unpin functionality would require a 'pinned' column in schema
+    return await this.getPost(id);
+  }
+
+  // Comments
+  async getCommentsByPost(postId: string): Promise<BlogComment[]> {
+    return await db.select()
+      .from(blogComments)
+      .where(eq(blogComments.postId, postId))
+      .orderBy(desc(blogComments.createdAt));
+  }
+
+  async createComment(insertComment: InsertComment): Promise<BlogComment> {
+    const result = await db.insert(blogComments).values(insertComment).returning();
+    return result[0];
+  }
+
+  async deleteComment(id: string): Promise<boolean> {
+    await db.delete(blogComments).where(eq(blogComments.id, id));
+    return true;
+  }
+
+  // Stars
+  async toggleStar(postId: string, userId: string): Promise<{ starred: boolean; count: number }> {
+    const existingStar = await db.select()
+      .from(postStars)
+      .where(and(
+        eq(postStars.postId, postId),
+        eq(postStars.userId, userId)
+      ))
+      .limit(1);
+
+    if (existingStar.length > 0) {
+      await db.delete(postStars).where(eq(postStars.id, existingStar[0].id));
+      await db.update(blogPosts)
+        .set({ stars: drizzleSql`GREATEST(${blogPosts.stars} - 1, 0)` })
+        .where(eq(blogPosts.id, postId));
+      
+      const post = await this.getPost(postId);
+      return { starred: false, count: post?.stars || 0 };
+    } else {
+      await db.insert(postStars).values({ postId, userId });
+      await db.update(blogPosts)
+        .set({ stars: drizzleSql`${blogPosts.stars} + 1` })
+        .where(eq(blogPosts.id, postId));
+      
+      const post = await this.getPost(postId);
+      return { starred: true, count: post?.stars || 1 };
+    }
+  }
+
+  async getStarCount(postId: string): Promise<number> {
+    const post = await this.getPost(postId);
+    return post?.stars || 0;
+  }
+
+  async hasUserStarred(postId: string, userId: string): Promise<boolean> {
+    const result = await db.select()
+      .from(postStars)
+      .where(and(
+        eq(postStars.postId, postId),
+        eq(postStars.userId, userId)
+      ))
+      .limit(1);
+    
+    return result.length > 0;
+  }
+
+  async incrementViews(postId: string): Promise<void> {
+    await db.update(blogPosts)
+      .set({ views: drizzleSql`${blogPosts.views} + 1` })
+      .where(eq(blogPosts.id, postId));
+  }
+
+  // Site Settings
+  async getSiteSettings(): Promise<SiteSettings> {
+    const result = await db.select().from(siteSettings).limit(1);
+    
+    if (result.length === 0) {
+      // Create default settings
+      const defaultSettings = await db.insert(siteSettings).values({
+        maintenanceMode: false,
+        maintenanceMessage: "We're currently performing maintenance. Please check back soon.",
+        siteTitle: "Snozxyx Portfolio",
+        siteDescription: "A modern portfolio showcasing projects, skills, and blog posts",
+        footerMessage: "Built with passion and code",
+      }).returning();
+      
+      return defaultSettings[0];
+    }
+    
+    return result[0];
+  }
+
+  async updateSiteSettings(updates: Partial<SiteSettings>): Promise<SiteSettings> {
+    const current = await this.getSiteSettings();
+    const result = await db.update(siteSettings)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(siteSettings.id, current.id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async toggleMaintenanceMode(): Promise<void> {
+    const current = await this.getSiteSettings();
+    await db.update(siteSettings)
+      .set({ 
+        maintenanceMode: !current.maintenanceMode,
+        updatedAt: new Date()
+      })
+      .where(eq(siteSettings.id, current.id));
+  }
+
+  // Announcements
+  async getAllAnnouncements(activeOnly = false): Promise<Announcement[]> {
+    if (activeOnly) {
+      return await db.select()
+        .from(announcements)
+        .where(eq(announcements.isActive, true))
+        .orderBy(desc(announcements.createdAt));
+    }
+    
+    return await db.select()
+      .from(announcements)
+      .orderBy(desc(announcements.createdAt));
+  }
+
+  async getAnnouncement(id: string): Promise<Announcement | undefined> {
+    const result = await db.select().from(announcements).where(eq(announcements.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createAnnouncement(insertAnnouncement: InsertAnnouncement): Promise<Announcement> {
+    const result = await db.insert(announcements).values({
+      title: insertAnnouncement.title,
+      message: insertAnnouncement.message,
+      type: insertAnnouncement.type || "info",
+      displayType: insertAnnouncement.displayType || "banner",
+      isActive: insertAnnouncement.isActive ?? true,
+      startDate: insertAnnouncement.startDate,
+      endDate: insertAnnouncement.endDate,
+    }).returning();
+    
+    return result[0];
+  }
+
+  async updateAnnouncement(id: string, updates: Partial<InsertAnnouncement>): Promise<Announcement | undefined> {
+    const result = await db.update(announcements)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(announcements.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async deleteAnnouncement(id: string): Promise<boolean> {
+    await db.delete(announcements).where(eq(announcements.id, id));
+    return true;
+  }
+}
+
+export const storage = new DbStorage();
