@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertProjectSchema, insertSkillSchema, insertUserSchema, loginSchema, insertBlogPostSchema, insertCommentSchema } from "@shared/schema";
 import "./types";
-import { rssRouter } from "./routes/rss";
-import { sitemapRouter } from "./routes/sitemap";
+import { registerRssRoutes } from "./routes/rss";
+import { registerSitemapRoutes } from "./routes/sitemap";
 import multer from "multer";
 import { s3Storage } from "./s3-storage";
 import { randomUUID } from "crypto";
@@ -666,10 +666,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // RSS Feed
-  app.use('/rss', rssRouter);
+  app.use('/rss', registerRssRoutes);
 
   // Sitemap
-  app.use('/sitemap.xml', sitemapRouter);
+  app.use('/sitemap.xml', registerSitemapRoutes);
 
   // Image Upload
   app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) => {
