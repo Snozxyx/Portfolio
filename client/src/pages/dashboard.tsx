@@ -16,12 +16,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/lib/auth-context';
-import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings, Megaphone, Plus, Trash2, Briefcase, Zap } from 'lucide-react';
+import { PenSquare, LogOut, Star, Eye, Shield, Ban, UserX, Settings, Megaphone, Plus, Trash2, Briefcase, Zap, Github, ExternalLink, GitFork, RefreshCw, Film, Gamepad2, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { BlogPost, SafeUser, SiteSettings, Announcement, InsertAnnouncement, Project, Skill } from '@shared/schema';
+import type { BlogPost, SafeUser, SiteSettings, Announcement, InsertAnnouncement, Project, Skill, AnimeEntry, InsertAnime } from '@shared/schema';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -59,6 +59,19 @@ export default function Dashboard() {
 
   const { data: skills = [] } = useQuery<Skill[]>({
     queryKey: ['/api/skills'],
+    enabled: user?.role === 'admin',
+  });
+
+  // GitHub repos query
+  const { data: githubRepos = [], refetch: refetchGithubRepos } = useQuery<any[]>({
+    queryKey: ['/api/github/repos/snozxyx'],
+    enabled: user?.role === 'admin',
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Anime query
+  const { data: animeList = [] } = useQuery<AnimeEntry[]>({
+    queryKey: ['/api/anime'],
     enabled: user?.role === 'admin',
   });
 
@@ -125,6 +138,26 @@ export default function Dashboard() {
     },
   });
 
+  const createAnimeMutation = useMutation({
+    mutationFn: async (data: InsertAnime) => {
+      const res = await apiRequest('POST', '/api/anime', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/anime'] });
+      toast({ title: 'Anime entry created successfully' });
+    },
+  });
+
+  const deleteAnimeMutation = useMutation({
+    mutationFn: (id: string) => 
+      apiRequest('DELETE', `/api/anime/${id}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/anime'] });
+      toast({ title: 'Anime entry deleted successfully' });
+    },
+  });
+
   const toggleAnnouncementMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => 
       apiRequest('PATCH', `/api/admin/announcements/${id}`, { isActive }),
@@ -171,8 +204,10 @@ export default function Dashboard() {
   });
 
   const updateSettingsMutation = useMutation({
-    mutationFn: (data: { maintenanceMode: boolean; maintenanceMessage?: string; siteTitle?: string; siteDescription?: string; ogImage?: string; footerMessage?: string }) => 
-      apiRequest('POST', '/api/admin/settings', data),
+    mutationFn: async (data: Partial<SiteSettings>) => {
+      const res = await apiRequest('POST', '/api/admin/settings', data);
+      return res.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
       toast({ title: 'Settings updated' });
@@ -216,6 +251,14 @@ export default function Dashboard() {
               <p className="text-muted-foreground font-sans">Welcome back, {user.displayName || user.username}!</p>
             </div>
             <div className="flex gap-2 md:gap-4">
+              {user.role === 'admin' && (
+                <Button asChild size="sm" variant="outline" className="md:h-10">
+                  <Link href="/admin/logs">
+                    <Activity className="w-4 h-4 md:mr-2" />
+                    <span className="hidden md:inline">Logs</span>
+                  </Link>
+                </Button>
+              )}
               <Button asChild size="sm" className="md:h-10" data-testid="button-new-post">
                 <Link href="/blog/create">
                   <PenSquare className="w-4 h-4 md:mr-2" />
@@ -371,114 +414,189 @@ export default function Dashboard() {
                           />
                         </div>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-card border border-card-border rounded-xl p-4 md:p-6">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <Settings className="w-5 h-5" />
-                      Site Settings
-                    </h3>
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <label className="text-sm font-medium">Maintenance Mode</label>
-                          <p className="text-sm text-muted-foreground">
-                            Enable maintenance mode to restrict access to the site
-                          </p>
-                        </div>
-                        <Switch
-                          checked={siteSettings?.maintenanceMode || false}
-                          onCheckedChange={(checked) => 
-                            updateSettingsMutation.mutate({
-                              maintenanceMode: checked,
-                              maintenanceMessage: siteSettings?.maintenanceMessage || "We're currently performing maintenance. Please check back soon."
-                            })
-                          }
-                          data-testid="switch-maintenance-mode"
-                        />
-                      </div>
-
-                      {siteSettings?.maintenanceMode && (
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Maintenance Message</label>
-                          <Textarea
-                            key={siteSettings?.maintenanceMessage}
-                            defaultValue={siteSettings?.maintenanceMessage || "We're currently performing maintenance. Please check back soon."}
-                            onBlur={(e) => 
-                              updateSettingsMutation.mutate({
-                                maintenanceMode: true,
-                                maintenanceMessage: e.target.value || "We're currently performing maintenance. Please check back soon."
-                              })
-                            }
-                            placeholder="Enter maintenance message..."
-                            className="min-h-[100px]"
-                            data-testid="textarea-maintenance-message"
-                          />
-                          <p className="text-xs text-muted-foreground mt-2">
-                            This message will be shown to non-admin users when they try to access the site.
-                          </p>
-                        </div>
-                      )}
 
                       <Separator />
 
                       <div className="space-y-4">
-                        <h3 className="text-lg font-semibold">SEO Settings</h3>
+                        <h3 className="text-lg font-semibold">Page Content</h3>
 
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Site Title</label>
+                          <label className="text-sm font-medium">Home Hero Title</label>
                           <Input
-                            key={siteSettings?.siteTitle}
-                            defaultValue={siteSettings?.siteTitle || ''}
+                            key={siteSettings?.homeHeroTitle}
+                            defaultValue={siteSettings?.homeHeroTitle || ''}
                             onBlur={(e) => 
-                              updateSettingsMutation.mutate({ siteTitle: e.target.value })
+                              updateSettingsMutation.mutate({ homeHeroTitle: e.target.value })
                             }
-                            placeholder="My Portfolio"
-                            data-testid="input-site-title"
+                            placeholder="Hi, I'm Snozxyx"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Site Description</label>
+                          <label className="text-sm font-medium">Home Hero Subtitle</label>
                           <Textarea
-                            key={siteSettings?.siteDescription}
-                            defaultValue={siteSettings?.siteDescription || ''}
+                            key={siteSettings?.homeHeroSubtitle}
+                            defaultValue={siteSettings?.homeHeroSubtitle || ''}
                             onBlur={(e) => 
-                              updateSettingsMutation.mutate({ siteDescription: e.target.value })
+                              updateSettingsMutation.mutate({ homeHeroSubtitle: e.target.value })
                             }
                             placeholder="Full-stack developer, gamer, and tech enthusiast"
-                            className="min-h-[80px]"
-                            data-testid="textarea-site-description"
+                            className="min-h-[60px]"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Open Graph Image URL</label>
-                          <Input
-                            key={siteSettings?.ogImage}
-                            defaultValue={siteSettings?.ogImage || ''}
+                          <label className="text-sm font-medium">About Text</label>
+                          <Textarea
+                            key={siteSettings?.homeAboutText}
+                            defaultValue={siteSettings?.homeAboutText || ''}
                             onBlur={(e) => 
-                              updateSettingsMutation.mutate({ ogImage: e.target.value })
+                              updateSettingsMutation.mutate({ homeAboutText: e.target.value })
                             }
-                            placeholder="https://example.com/og-image.jpg"
-                            data-testid="input-og-image"
+                            placeholder="Tell visitors about yourself..."
+                            className="min-h-[120px]"
+                          />
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Contact Information</h3>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Email</label>
+                          <Input
+                            key={siteSettings?.contactEmail}
+                            defaultValue={siteSettings?.contactEmail || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ contactEmail: e.target.value })
+                            }
+                            placeholder="your@email.com"
+                            type="email"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">GitHub URL</label>
+                          <Input
+                            key={siteSettings?.contactGithub}
+                            defaultValue={siteSettings?.contactGithub || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ contactGithub: e.target.value })
+                            }
+                            placeholder="https://github.com/username"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">LinkedIn URL</label>
+                          <Input
+                            key={siteSettings?.contactLinkedin}
+                            defaultValue={siteSettings?.contactLinkedin || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ contactLinkedin: e.target.value })
+                            }
+                            placeholder="https://linkedin.com/in/username"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Twitter/X URL</label>
+                          <Input
+                            key={siteSettings?.contactTwitter}
+                            defaultValue={siteSettings?.contactTwitter || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ contactTwitter: e.target.value })
+                            }
+                            placeholder="https://twitter.com/username"
+                          />
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Games & Media</h3>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Steam Profile ID</label>
+                          <Input
+                            key={siteSettings?.steamProfileId}
+                            defaultValue={siteSettings?.steamProfileId || ''}
+                            onBlur={(e) => 
+                              updateSettingsMutation.mutate({ steamProfileId: e.target.value })
+                            }
+                            placeholder="Snozxyx"
                           />
                           <p className="text-xs text-muted-foreground">
-                            Image shown when sharing on social media (recommended: 1200x630px)
+                            Your Steam custom URL ID (from steamcommunity.com/id/YOUR_ID)
                           </p>
                         </div>
+                      </div>
 
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Footer Message</label>
-                          <Input
-                            key={siteSettings?.footerMessage}
-                            defaultValue={siteSettings?.footerMessage || ''}
-                            onBlur={(e) => 
-                              updateSettingsMutation.mutate({ footerMessage: e.target.value })
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Page Visibility</h3>
+
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">Show Anime Page</label>
+                            <p className="text-sm text-muted-foreground">
+                              Enable /anime route for visitors
+                            </p>
+                          </div>
+                          <Switch
+                            checked={siteSettings?.showAnimePage || false}
+                            onCheckedChange={(checked) => 
+                              updateSettingsMutation.mutate({ showAnimePage: checked })
                             }
-                            placeholder="© 2024 Snozxyx. All rights reserved."
-                            data-testid="input-footer-message"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">Show Games Page</label>
+                            <p className="text-sm text-muted-foreground">
+                              Enable /games route for visitors
+                            </p>
+                          </div>
+                          <Switch
+                            checked={siteSettings?.showGamesPage || false}
+                            onCheckedChange={(checked) => 
+                              updateSettingsMutation.mutate({ showGamesPage: checked })
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">Show Anime Widget</label>
+                            <p className="text-sm text-muted-foreground">
+                              Display anime widget on home page
+                            </p>
+                          </div>
+                          <Switch
+                            checked={siteSettings?.showAnimeWidget || false}
+                            onCheckedChange={(checked) => 
+                              updateSettingsMutation.mutate({ showAnimeWidget: checked })
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">Show Games Widget</label>
+                            <p className="text-sm text-muted-foreground">
+                              Display games widget on home page
+                            </p>
+                          </div>
+                          <Switch
+                            checked={siteSettings?.showGamesWidget || false}
+                            onCheckedChange={(checked) => 
+                              updateSettingsMutation.mutate({ showGamesWidget: checked })
+                            }
                           />
                         </div>
                       </div>
@@ -667,6 +785,204 @@ export default function Dashboard() {
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground text-center py-4">No skills yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* GitHub Repositories Section */}
+                  <div className="bg-card border border-card-border rounded-xl p-4 md:p-6 mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Github className="w-5 h-5" />
+                        GitHub Repositories
+                      </h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => refetchGithubRepos()}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-1" />
+                        Refresh
+                      </Button>
+                    </div>
+
+                    {githubRepos.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {githubRepos.slice(0, 10).map((repo: any) => (
+                          <div key={repo.id} className="p-3 bg-background rounded-lg border border-border hover:border-primary/50 transition-colors">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <a
+                                  href={repo.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-sm hover:text-primary transition-colors flex items-center gap-1"
+                                >
+                                  {repo.name}
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                                {repo.description && (
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                    {repo.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                              {repo.language && (
+                                <span className="flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full bg-primary"></span>
+                                  {repo.language}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Star className="w-3 h-3" />
+                                {repo.stars}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <GitFork className="w-3 h-3" />
+                                {repo.forks}
+                              </span>
+                            </div>
+                            
+                            {repo.topics && repo.topics.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {repo.topics.slice(0, 3).map((topic: string) => (
+                                  <Badge key={topic} variant="outline" className="text-xs">
+                                    {topic}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No repositories found or failed to load
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Anime Management Section */}
+                  <div className="bg-card border border-card-border rounded-xl p-4 md:p-6 mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Film className="w-5 h-5" />
+                        Anime Management
+                      </h3>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="p-4 bg-background rounded-lg border border-border">
+                        <h4 className="font-medium mb-3">Add New Anime</h4>
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          const form = e.target as HTMLFormElement;
+                          const formData = new FormData(form);
+                          createAnimeMutation.mutate({
+                            name: formData.get('name') as string,
+                            imageUrl: (formData.get('imageUrl') as string) || null,
+                            videoUrl: (formData.get('videoUrl') as string) || null,
+                            clipUrl: (formData.get('clipUrl') as string) || null,
+                            status: (formData.get('status') as string) || 'watching',
+                            rating: formData.get('rating') ? parseInt(formData.get('rating') as string) : null,
+                            episodes: formData.get('episodes') ? parseInt(formData.get('episodes') as string) : null,
+                            notes: (formData.get('notes') as string) || null,
+                            order: formData.get('order') ? parseInt(formData.get('order') as string) : 0,
+                          });
+                          form.reset();
+                        }} className="space-y-3">
+                          <div>
+                            <Label htmlFor="animeName">Anime Name</Label>
+                            <Input id="animeName" name="name" required placeholder="Attack on Titan" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="animeImageUrl">Image URL</Label>
+                              <Input id="animeImageUrl" name="imageUrl" placeholder="https://..." />
+                            </div>
+                            <div>
+                              <Label htmlFor="animeStatus">Status</Label>
+                              <Select name="status" defaultValue="watching">
+                                <SelectTrigger id="animeStatus">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="watching">Watching</SelectItem>
+                                  <SelectItem value="completed">Completed</SelectItem>
+                                  <SelectItem value="plan_to_watch">Plan to Watch</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <Label htmlFor="animeRating">Rating (1-10)</Label>
+                              <Input id="animeRating" name="rating" type="number" min="1" max="10" placeholder="8" />
+                            </div>
+                            <div>
+                              <Label htmlFor="animeEpisodes">Episodes</Label>
+                              <Input id="animeEpisodes" name="episodes" type="number" placeholder="24" />
+                            </div>
+                            <div>
+                              <Label htmlFor="animeOrder">Order</Label>
+                              <Input id="animeOrder" name="order" type="number" placeholder="0" />
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor="animeVideoUrl">Full Video URL</Label>
+                            <Input id="animeVideoUrl" name="videoUrl" placeholder="https://..." />
+                          </div>
+                          <div>
+                            <Label htmlFor="animeClipUrl">Clip URL</Label>
+                            <Input id="animeClipUrl" name="clipUrl" placeholder="https://..." />
+                          </div>
+                          <div>
+                            <Label htmlFor="animeNotes">Notes</Label>
+                            <Textarea id="animeNotes" name="notes" placeholder="Your thoughts..." rows={2} />
+                          </div>
+                          <Button type="submit" className="w-full">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Anime
+                          </Button>
+                        </form>
+                      </div>
+
+                      {animeList.length > 0 ? (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm">Existing Anime</h4>
+                          {animeList.map((anime) => (
+                            <div key={anime.id} className="p-3 bg-background rounded-lg border border-border flex items-start justify-between gap-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h5 className="font-medium text-sm">{anime.name}</h5>
+                                  {anime.rating && (
+                                    <Badge variant="outline" className="text-xs">
+                                      ⭐ {anime.rating}/10
+                                    </Badge>
+                                  )}
+                                  <Badge variant="secondary" className="text-xs capitalize">
+                                    {anime.status.replace('_', ' ')}
+                                  </Badge>
+                                </div>
+                                {anime.notes && (
+                                  <p className="text-xs text-muted-foreground line-clamp-1">{anime.notes}</p>
+                                )}
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => deleteAnimeMutation.mutate(anime.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">No anime entries yet</p>
                       )}
                     </div>
                   </div>

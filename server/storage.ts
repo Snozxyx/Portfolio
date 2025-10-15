@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Project, type InsertProject, type Skill, type InsertSkill, type BlogPost, type InsertBlogPost, type BlogComment, type InsertComment, type PostStar, type SafeUser, type SiteSettings, type Announcement, type InsertAnnouncement } from "@shared/schema";
+import { type User, type InsertUser, type Project, type InsertProject, type Skill, type InsertSkill, type BlogPost, type InsertBlogPost, type BlogComment, type InsertComment, type PostStar, type SafeUser, type SiteSettings, type Announcement, type InsertAnnouncement, type AnimeEntry, type InsertAnime, type ActivityLog } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -65,6 +65,17 @@ export interface IStorage {
   createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement>;
   updateAnnouncement(id: string, announcement: Partial<InsertAnnouncement>): Promise<Announcement | undefined>;
   deleteAnnouncement(id: string): Promise<boolean>;
+
+  // Anime
+  getAllAnime(): Promise<AnimeEntry[]>;
+  getAnime(id: string): Promise<AnimeEntry | undefined>;
+  createAnime(anime: InsertAnime): Promise<AnimeEntry>;
+  updateAnime(id: string, anime: Partial<InsertAnime>): Promise<AnimeEntry | undefined>;
+  deleteAnime(id: string): Promise<boolean>;
+
+  // Activity Logs
+  getAllActivityLogs(limit?: number): Promise<ActivityLog[]>;
+  createActivityLog(log: Omit<ActivityLog, 'id' | 'createdAt'>): Promise<ActivityLog>;
 }
 
 export class MemStorage implements IStorage {
@@ -76,6 +87,8 @@ export class MemStorage implements IStorage {
   private postStars: Map<string, PostStar>;
   private siteSettings: Map<string, SiteSettings>;
   private announcements: Map<string, Announcement>;
+  private animeEntries: Map<string, AnimeEntry>;
+  private activityLogs: ActivityLog[];
 
 
   constructor() {
@@ -87,6 +100,8 @@ export class MemStorage implements IStorage {
     this.postStars = new Map();
     this.siteSettings = new Map();
     this.announcements = new Map();
+    this.animeEntries = new Map();
+    this.activityLogs = [];
 
 
     this.seedData();
@@ -299,6 +314,18 @@ export class MemStorage implements IStorage {
       favicon: null,
       ogImage: null,
       footerMessage: "Built with passion and code",
+      homeHeroTitle: null,
+      homeHeroSubtitle: null,
+      homeAboutText: null,
+      contactEmail: null,
+      contactGithub: null,
+      contactLinkedin: null,
+      contactTwitter: null,
+      showAnimePage: true,
+      showGamesPage: true,
+      showAnimeWidget: true,
+      showGamesWidget: true,
+      steamProfileId: null,
       updatedAt: new Date()
     });
   }
@@ -704,6 +731,18 @@ export class MemStorage implements IStorage {
         favicon: null,
         ogImage: null,
         footerMessage: "Built with passion and code",
+        homeHeroTitle: null,
+        homeHeroSubtitle: null,
+        homeAboutText: null,
+        contactEmail: null,
+        contactGithub: null,
+        contactLinkedin: null,
+        contactTwitter: null,
+        showAnimePage: true,
+        showGamesPage: true,
+        showAnimeWidget: true,
+        showGamesWidget: true,
+        steamProfileId: null,
         updatedAt: new Date()
       };
       this.siteSettings.set("settings", defaultSettings);
@@ -788,6 +827,74 @@ export class MemStorage implements IStorage {
   async deleteAnnouncement(id: string): Promise<boolean> {
     return this.announcements.delete(id);
   }
+
+  // Anime methods
+  async getAllAnime(): Promise<AnimeEntry[]> {
+    const entries = Array.from(this.animeEntries.values());
+    return entries.sort((a, b) => a.order - b.order);
+  }
+
+  async getAnime(id: string): Promise<AnimeEntry | undefined> {
+    return this.animeEntries.get(id);
+  }
+
+  async createAnime(insertAnime: InsertAnime): Promise<AnimeEntry> {
+    const id = randomUUID();
+    const anime: AnimeEntry = {
+      id,
+      name: insertAnime.name,
+      imageUrl: insertAnime.imageUrl || null,
+      videoUrl: insertAnime.videoUrl || null,
+      clipUrl: insertAnime.clipUrl || null,
+      status: insertAnime.status || "watching",
+      rating: insertAnime.rating || null,
+      episodes: insertAnime.episodes || null,
+      notes: insertAnime.notes || null,
+      order: insertAnime.order || 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.animeEntries.set(id, anime);
+    return anime;
+  }
+
+  async updateAnime(id: string, updates: Partial<InsertAnime>): Promise<AnimeEntry | undefined> {
+    const anime = this.animeEntries.get(id);
+    if (!anime) return undefined;
+
+    const updated = { 
+      ...anime, 
+      ...updates,
+      updatedAt: new Date()
+    };
+    this.animeEntries.set(id, updated);
+    return updated;
+  }
+
+  async deleteAnime(id: string): Promise<boolean> {
+    return this.animeEntries.delete(id);
+  }
+
+  // Activity Log methods
+  async getAllActivityLogs(limit: number = 100): Promise<ActivityLog[]> {
+    return this.activityLogs
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
+  }
+
+  async createActivityLog(log: Omit<ActivityLog, 'id' | 'createdAt'>): Promise<ActivityLog> {
+    const activityLog: ActivityLog = {
+      id: randomUUID(),
+      ...log,
+      createdAt: new Date()
+    };
+    this.activityLogs.push(activityLog);
+    // Keep only last 1000 logs
+    if (this.activityLogs.length > 1000) {
+      this.activityLogs = this.activityLogs.slice(-1000);
+    }
+    return activityLog;
+  }
 }
 
 // PostgreSQL Storage Implementation using Drizzle ORM
@@ -801,7 +908,9 @@ import {
   blogComments, 
   postStars, 
   siteSettings,
-  announcements
+  announcements,
+  animeEntries,
+  activityLogs
 } from "@shared/schema";
 
 export class DbStorage implements IStorage {
@@ -1233,6 +1342,61 @@ export class DbStorage implements IStorage {
   async deleteAnnouncement(id: string): Promise<boolean> {
     await db.delete(announcements).where(eq(announcements.id, id));
     return true;
+  }
+
+  // Anime methods
+  async getAllAnime(): Promise<AnimeEntry[]> {
+    const result = await db.select().from(animeEntries).orderBy(animeEntries.order);
+    return result;
+  }
+
+  async getAnime(id: string): Promise<AnimeEntry | undefined> {
+    const result = await db.select().from(animeEntries).where(eq(animeEntries.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createAnime(insertAnime: InsertAnime): Promise<AnimeEntry> {
+    const result = await db.insert(animeEntries).values({
+      name: insertAnime.name,
+      imageUrl: insertAnime.imageUrl,
+      videoUrl: insertAnime.videoUrl,
+      clipUrl: insertAnime.clipUrl,
+      status: insertAnime.status || "watching",
+      rating: insertAnime.rating,
+      episodes: insertAnime.episodes,
+      notes: insertAnime.notes,
+      order: insertAnime.order || 0,
+    }).returning();
+    
+    return result[0];
+  }
+
+  async updateAnime(id: string, updates: Partial<InsertAnime>): Promise<AnimeEntry | undefined> {
+    const result = await db.update(animeEntries)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(animeEntries.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async deleteAnime(id: string): Promise<boolean> {
+    await db.delete(animeEntries).where(eq(animeEntries.id, id));
+    return true;
+  }
+
+  // Activity Log methods
+  async getAllActivityLogs(limit: number = 100): Promise<ActivityLog[]> {
+    const result = await db.select()
+      .from(activityLogs)
+      .orderBy(desc(activityLogs.createdAt))
+      .limit(limit);
+    return result;
+  }
+
+  async createActivityLog(log: Omit<ActivityLog, 'id' | 'createdAt'>): Promise<ActivityLog> {
+    const result = await db.insert(activityLogs).values(log).returning();
+    return result[0];
   }
 }
 

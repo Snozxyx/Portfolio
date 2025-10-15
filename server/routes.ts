@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertProjectSchema, insertSkillSchema, insertUserSchema, loginSchema, insertBlogPostSchema, insertCommentSchema } from "@shared/schema";
+import { insertProjectSchema, insertSkillSchema, insertUserSchema, loginSchema, insertBlogPostSchema, insertCommentSchema, insertAnimeSchema } from "@shared/schema";
 import "./types";
 import { registerRssRoutes } from "./routes/rss";
 import { registerSitemapRoutes } from "./routes/sitemap";
@@ -703,6 +703,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Delete error:', error);
       res.status(500).json({ error: 'Failed to delete image' });
+    }
+  });
+
+  // GitHub API routes
+  app.get("/api/github/repos/:username", async (req, res) => {
+    try {
+      const { username } = req.params;
+      const response = await fetch(`https://api.github.com/users/${username}/repos?sort=updated&per_page=100`, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Portfolio-App'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch GitHub repos');
+      }
+
+      const repos = await response.json();
+      
+      // Filter and format the repos
+      const formattedRepos = repos.map((repo: any) => ({
+        id: repo.id,
+        name: repo.name,
+        fullName: repo.full_name,
+        description: repo.description,
+        url: repo.html_url,
+        homepage: repo.homepage,
+        stars: repo.stargazers_count,
+        forks: repo.forks_count,
+        language: repo.language,
+        topics: repo.topics || [],
+        createdAt: repo.created_at,
+        updatedAt: repo.updated_at,
+        isPrivate: repo.private,
+        isFork: repo.fork,
+      }));
+
+      res.json(formattedRepos);
+    } catch (error) {
+      console.error('GitHub API error:', error);
+      res.status(500).json({ error: 'Failed to fetch GitHub repositories' });
+    }
+  });
+
+  // Anime API routes
+  app.get("/api/anime", async (req, res) => {
+    try {
+      const anime = await storage.getAllAnime();
+      res.json(anime);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch anime" });
+    }
+  });
+
+  app.post("/api/anime", requireAdmin, async (req, res) => {
+    try {
+      const anime = await storage.createAnime(req.body);
+      res.json(anime);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create anime entry" });
+    }
+  });
+
+  app.patch("/api/anime/:id", requireAdmin, async (req, res) => {
+    try {
+      const anime = await storage.updateAnime(req.params.id, req.body);
+      if (!anime) {
+        return res.status(404).json({ error: "Anime not found" });
+      }
+      res.json(anime);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update anime entry" });
+    }
+  });
+
+  app.delete("/api/anime/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteAnime(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete anime entry" });
+    }
+  });
+
+  // Steam/Games API route
+  app.get("/api/steam/profile", async (req, res) => {
+    try {
+      const settings = await storage.getSiteSettings();
+      const steamId = settings.steamProfileId || 'Snozxyx';
+      
+      // For now, return placeholder data
+      // In production, you would call Steam API with API key
+      res.json({
+        steamId,
+        gameCount: 0,
+        totalHours: 0,
+        level: 0,
+        recentGames: []
+      });
+    } catch (error) {
+      console.error('Steam API error:', error);
+      res.status(500).json({ error: 'Failed to fetch Steam profile' });
+    }
+  });
+
+  // Activity Logs API routes
+  app.get("/api/admin/logs", requireAdmin, async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const logs = await storage.getAllActivityLogs(limit);
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch activity logs" });
     }
   });
 

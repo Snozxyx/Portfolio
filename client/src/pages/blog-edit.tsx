@@ -74,10 +74,13 @@ export default function BlogEdit() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('PATCH', `/api/blog/posts/${id}`, {
-      ...data,
-      tags: data.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
-    }),
+    mutationFn: async (data: any) => {
+      const res = await apiRequest('PATCH', `/api/blog/posts/${id}`, {
+        ...data,
+        tags: data.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
+      });
+      return res.json();
+    },
     onSuccess: (updatedPost: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/blog/posts'] });
       queryClient.invalidateQueries({ queryKey: ['/api/blog/posts', id] });

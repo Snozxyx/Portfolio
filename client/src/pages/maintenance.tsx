@@ -1,6 +1,6 @@
 
 import { motion } from 'framer-motion';
-import { AlertCircle, Wrench, Home } from 'lucide-react';
+import { AlertCircle, Wrench, Home, LogIn } from 'lucide-react';
 import { ParticleBackground } from '@/components/ParticleBackground';
 import { Button } from '@/components/ui/button';
 import { useLocation } from 'wouter';
@@ -80,14 +80,25 @@ export default function MaintenancePage({ message }: MaintenancePageProps) {
             Thank you for your patience and understanding!
           </p>
           
-          <Button
-            onClick={() => setLocation('/')}
-            size="lg"
-            className="group"
-          >
-            <Home className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
-            Try Homepage
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button
+              onClick={() => setLocation('/login')}
+              size="lg"
+              className="group"
+            >
+              <LogIn className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+              Admin Login
+            </Button>
+            <Button
+              onClick={() => setLocation('/')}
+              size="lg"
+              variant="outline"
+              className="group"
+            >
+              <Home className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+              Try Homepage
+            </Button>
+          </div>
         </motion.div>
 
         <motion.div
